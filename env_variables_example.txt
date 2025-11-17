@@ -1,0 +1,22 @@
+# ===================================================================
+# Exemplo de Variáveis de Ambiente para o Sistema de Fretes
+# ===================================================================
+#
+# INSTRUÇÕES:
+# 1. Copie as variáveis abaixo.
+# 2. Na tela de criação da "Stack" no Portainer, cole cada uma na seção "Environment variables".
+# 3. Substitua os valores de exemplo pelos seus dados de produção reais.
+#
+# ESTAS VARIÁVEIS SÃO OBRIGATÓRIAS PARA A API FUNCIONAR.
+
+# --- Conexão com o Banco de Dados Principal (onde os dados da aplicação são salvos) ---
+DB_SERVER_ODIN=10.10.10.100
+DB_DATABASE_ODIN=Fretes
+DB_USER_ODIN=seu_usuario_odin
+DB_PASSWORD_ODIN=sua_senha_segura_odin
+
+# --- Conexão com o Banco de Dados de Consulta (ERP de onde os dados são importados) ---
+DB_SERVER_ERP=consulta.flagcloud.com.br
+DB_DATABASE_ERP=flexx10071188
+DB_USER_ERP=SQL10071188
+DB_PASSWORD_ERP=SQL2020/R@1nh@

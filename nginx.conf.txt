@@ -1,0 +1,36 @@
+# ===================================================================
+# Configuração do Nginx para servir o Frontend e atuar como Reverse Proxy
+# ===================================================================
+
+server {
+    # O servidor escuta na porta 80, que é a porta padrão para HTTP.
+    listen 80;
+
+    # Define o diretório raiz onde os arquivos do frontend estão localizados.
+    root /usr/share/nginx/html;
+    # Define o arquivo de entrada padrão.
+    index index.html;
+
+    # --- Configuração do Reverse Proxy para a API ---
+    # Qualquer requisição que comece com /api/ será redirecionada para o backend.
+    location /api/ {
+        # O nome 'fretes-api' é o nome do serviço definido no docker-compose.yml.
+        # Docker resolve este nome para o IP interno do container da API.
+        # A porta 3000 é a porta que a API expõe DENTRO da rede Docker.
+        proxy_pass http://fretes-api:3000/;
+
+        # Cabeçalhos importantes para o bom funcionamento do proxy reverso.
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # --- Configuração para Aplicações de Página Única (SPA) como o React ---
+    # Esta regra é crucial. Se o Nginx não encontrar um arquivo ou diretório
+    # correspondente à URL, ele servirá o index.html. Isso permite que o
+    # roteamento do lado do cliente (client-side routing) do React funcione.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

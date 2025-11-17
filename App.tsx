@@ -7,11 +7,18 @@ import { GestaoVeiculos } from './components/GestaoVeiculos';
 import { GestaoParametros } from './components/GestaoParametros';
 import { GestaoCargas } from './components/GestaoCargas';
 import { DataProvider, DataContext } from './context/DataContext';
-import { ChartBarIcon, CogIcon, PlusCircleIcon, TruckIcon, DocumentReportIcon, CloudUploadIcon, BoxIcon, SpinnerIcon, XCircleIcon } from './components/icons';
+import { ChartBarIcon, CogIcon, PlusCircleIcon, TruckIcon, DocumentReportIcon, CloudUploadIcon, BoxIcon, SpinnerIcon, XCircleIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from './components/icons';
 
 type View = 'dashboard' | 'lancamento' | 'veiculos' | 'cargas' | 'parametros' | 'relatorios' | 'importacao';
 
-const Sidebar: React.FC<{ activeView: View; setView: (view: View) => void }> = ({ activeView, setView }) => {
+interface SidebarProps {
+    activeView: View;
+    setView: (view: View) => void;
+    isCollapsed: boolean;
+    setCollapsed: (collapsed: boolean) => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, setCollapsed }) => {
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
         { id: 'lancamento', label: 'Novo Lançamento', icon: PlusCircleIcon },
@@ -23,29 +30,36 @@ const Sidebar: React.FC<{ activeView: View; setView: (view: View) => void }> = (
     ] as const;
 
     return (
-        <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
+        <div className={`bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
             <div className="flex items-center justify-center h-20 border-b border-slate-800">
-                <TruckIcon className="h-8 w-8 text-sky-500" />
-                <h1 className="text-xl font-bold text-white ml-3">Fretes</h1>
+                <TruckIcon className="h-8 w-8 text-sky-500 shrink-0" />
+                <h1 className={`text-xl font-bold text-white ml-3 transition-opacity duration-200 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>Fretes</h1>
             </div>
             <nav className="flex-1 px-4 py-6 space-y-2">
                 {navItems.map(item => (
                     <button
                         key={item.id}
                         onClick={() => setView(item.id)}
-                        className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        title={isCollapsed ? item.label : undefined}
+                        className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${isCollapsed ? 'justify-center' : ''} ${
                             activeView === item.id 
                                 ? 'bg-sky-500 text-white' 
                                 : 'text-slate-300 hover:bg-slate-700 hover:text-white'
                         }`}
                     >
-                        <item.icon className="h-5 w-5 mr-3" />
-                        <span>{item.label}</span>
+                        <item.icon className="h-5 w-5 shrink-0" />
+                        <span className={`ml-3 transition-opacity whitespace-nowrap ${isCollapsed ? 'opacity-0 hidden' : 'opacity-100'}`}>{item.label}</span>
                     </button>
                 ))}
             </nav>
-            <div className="p-4 border-t border-slate-800">
-                <p className="text-xs text-slate-500 text-center">&copy; 2024 Fretes</p>
+            <div className={`p-4 border-t border-slate-800 transition-all duration-300`}>
+                <button 
+                    onClick={() => setCollapsed(!isCollapsed)}
+                    className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium rounded-lg text-slate-400 hover:bg-slate-700 hover:text-white transition-colors duration-200"
+                    title={isCollapsed ? "Expandir menu" : "Recolher menu"}
+                >
+                    {isCollapsed ? <ChevronDoubleRightIcon className="h-5 w-5"/> : <ChevronDoubleLeftIcon className="h-5 w-5"/>}
+                </button>
             </div>
         </div>
     );
@@ -54,6 +68,7 @@ const Sidebar: React.FC<{ activeView: View; setView: (view: View) => void }> = (
 const AppContent: React.FC = () => {
     const { loading, error } = useContext(DataContext);
     const [activeView, setActiveView] = useState<View>('dashboard');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     const renderContent = () => {
         switch (activeView) {
@@ -102,7 +117,7 @@ const AppContent: React.FC = () => {
 
     return (
         <div className="flex h-screen bg-slate-800 text-slate-100">
-            <Sidebar activeView={activeView} setView={setActiveView} />
+            <Sidebar activeView={activeView} setView={setActiveView} isCollapsed={isSidebarCollapsed} setCollapsed={setIsSidebarCollapsed} />
             <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-800">
                 <div className="max-w-7xl mx-auto">
                    {renderContent()}

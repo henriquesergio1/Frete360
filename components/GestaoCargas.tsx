@@ -3,6 +3,23 @@ import { Carga } from '../types';
 import { DataContext } from '../context/DataContext';
 import { PlusCircleIcon, PencilIcon, XCircleIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon, ExclamationIcon } from './icons';
 
+// --- Tag Component for Carga Origin ---
+const OrigemTag: React.FC<{ origem?: 'ERP' | 'CSV' | 'Manual' }> = ({ origem }) => {
+    if (!origem) return null;
+
+    const styles = {
+        ERP: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
+        CSV: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
+        Manual: 'bg-green-500/20 text-green-300 border border-green-500/30',
+    };
+
+    return (
+        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${styles[origem]}`}>
+            {origem}
+        </span>
+    );
+};
+
 // --- Modal Component for Deletion ---
 const DeletionModal: React.FC<{
     isOpen: boolean;
@@ -248,6 +265,7 @@ export const GestaoCargas: React.FC = () => {
             DataCTE: new Date().toISOString().split('T')[0],
             KM: 0,
             COD_VEICULO: '',
+            Origem: 'Manual',
         });
         setIsModalOpen(true);
     };
@@ -365,7 +383,12 @@ export const GestaoCargas: React.FC = () => {
                                     
                                 return (
                                 <tr key={carga.ID_Carga} className={rowClasses}>
-                                    <td className="p-4 font-medium text-white">{carga.NumeroCarga}</td>
+                                    <td className="p-4 font-medium text-white">
+                                        <div className="flex items-center gap-3">
+                                            <span>{carga.NumeroCarga}</span>
+                                            <OrigemTag origem={carga.Origem} />
+                                        </div>
+                                    </td>
                                     <td className="p-4">{carga.Cidade}</td>
                                     <td className="p-4">{new Date(carga.DataCTE + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                                     <td className="p-4">{carga.ValorCTE.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>

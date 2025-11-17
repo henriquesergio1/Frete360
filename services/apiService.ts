@@ -33,40 +33,25 @@ export const getVeiculos = (): Promise<Veiculo[]> => {
     return fetch(`${API_URL}/veiculos`).then(handleResponse);
 };
 
-// FIX: Update getCargas to accept parameters for filtering by vehicle and date. This resolves type errors in LancamentoFrete.tsx.
 export const getCargas = async (params?: { veiculoCod?: string, data?: string }): Promise<Carga[]> => {
     if (API_MODE === 'mock') return mockApi.getMockCargas(params);
     
-    let sIni: string;
-    let sFim: string;
-
-    if (params?.data) {
-        sIni = params.data;
-        sFim = params.data;
-    } else {
-        const hoje = new Date();
-        const trintaDiasAtras = new Date(new Date().setDate(hoje.getDate() - 30));
-        sFim = hoje.toISOString().split('T')[0];
-        sIni = trintaDiasAtras.toISOString().split('T')[0];
-    }
-
-    const erpPromise = fetch(`${API_URL}/cargas-erp?sIni=${sIni}&sFim=${sFim}`).then(handleResponse);
-    const manualPromise = fetch(`${API_URL}/cargas-manuais`).then(handleResponse);
-
-    const [erpCargas, manualCargas] = await Promise.all([erpPromise, manualPromise]);
-    let allCargas = [...erpCargas, ...manualCargas];
-
-    if (params?.data) {
-        // erpPromise is already filtered by date. manualPromise is not, so we filter it here.
-        const filteredManualCargas = manualCargas.filter((c: Carga) => c.DataCTE === params.data);
-        allCargas = [...erpCargas, ...filteredManualCargas];
-    }
-
-    if (params?.veiculoCod) {
-        allCargas = allCargas.filter(c => c.COD_VEICULO === params.veiculoCod);
-    }
+    // Na API real, as cargas do ERP são buscadas separadamente das manuais
+    // Esta função agora deve buscar apenas as cargas manuais para a seleção no lançamento.
+    // A busca de cargas do ERP para lançamento não está implementada na API, apenas a importação.
+    // Para manter a funcionalidade, vamos buscar apenas as manuais.
+    let cargasManuais: Carga[] = await fetch(`${API_URL}/cargas-manuais`).then(handleResponse);
     
-    return allCargas;
+    // Aplicar filtros no frontend, pois a API simples não os suporta
+    if (params) {
+        if (params.data) {
+            cargasManuais = cargasManuais.filter(c => c.DataCTE === params.data);
+        }
+        if (params.veiculoCod) {
+            cargasManuais = cargasManuais.filter(c => c.COD_VEICULO === params.veiculoCod);
+        }
+    }
+    return cargasManuais.filter(c => !c.Excluido); // Retornar apenas as ativas
 };
 
 export const getCargasManuais = (): Promise<Carga[]> => {
@@ -85,7 +70,6 @@ export const getParametrosTaxas = (): Promise<ParametroTaxa[]> => {
 };
 
 export const getMotivosSubstituicao = (): Promise<MotivoSubstituicao[]> => {
-    // Mantendo mockado pois não há uma tabela no banco para isso
     return mockApi.getMockMotivosSubstituicao();
 };
 
@@ -97,7 +81,6 @@ export const getLancamentos = (): Promise<Lancamento[]> => {
 
 // --- Funções de Escrita (POST, PUT, DELETE) ---
 
-// Lançamentos
 export const createLancamento = (lancamento: NewLancamento): Promise<Lancamento> => {
     if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
     return apiRequest(`${API_URL}/lancamentos`, 'POST', lancamento);
@@ -105,72 +88,80 @@ export const createLancamento = (lancamento: NewLancamento): Promise<Lancamento>
 
 export const deleteLancamento = (id: number, motivo: string): Promise<void> => {
     if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
-    return apiRequest(`${API_URL}/lancamentos/${id}`, 'PUT', { motivo }); // PUT para exclusão lógica
+    return apiRequest(`${API_URL}/lancamentos/${id}`, 'PUT', { motivo });
 };
 
-// Veículos
 export const createVeiculo = (veiculo: Omit<Veiculo, 'ID_Veiculo'>): Promise<Veiculo> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
+    if (API_MODE === 'mock') return mockApi.createMockVeiculo(veiculo);
     return apiRequest(`${API_URL}/veiculos`, 'POST', veiculo);
 };
 
 export const updateVeiculo = (id: number, veiculo: Veiculo): Promise<Veiculo> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
+    if (API_MODE === 'mock') return mockApi.updateMockVeiculo(id, veiculo);
     return apiRequest(`${API_URL}/veiculos/${id}`, 'PUT', veiculo);
 };
 
-// Cargas Manuais
 export const createCarga = (carga: Omit<Carga, 'ID_Carga'>): Promise<Carga> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
+    if (API_MODE === 'mock') return mockApi.createMockCarga(carga);
     return apiRequest(`${API_URL}/cargas-manuais`, 'POST', carga);
 };
 
 export const updateCarga = (id: number, carga: Carga): Promise<Carga> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
+    if (API_MODE === 'mock') return mockApi.updateMockCarga(id, carga);
     return apiRequest(`${API_URL}/cargas-manuais/${id}`, 'PUT', carga);
 };
 
 export const deleteCarga = (id: number, motivo: string): Promise<void> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
-    // A API espera um corpo com o status de exclusão e o motivo
+    if (API_MODE === 'mock') return mockApi.deleteMockCarga(id, motivo);
     const body = { Excluido: true, MotivoExclusao: motivo };
     return apiRequest(`${API_URL}/cargas-manuais/${id}`, 'PUT', body);
 };
 
-// Parâmetros de Valor
+// FIX: Implemented CRUD for ParametrosValores
 export const createParametroValor = (param: Omit<ParametroValor, 'ID_Parametro'>): Promise<ParametroValor> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
+    if (API_MODE === 'mock') return mockApi.createMockParametroValor(param);
     return apiRequest(`${API_URL}/parametros-valores`, 'POST', param);
 };
+
 export const updateParametroValor = (id: number, param: ParametroValor): Promise<ParametroValor> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
+    if (API_MODE === 'mock') return mockApi.updateMockParametroValor(id, param);
     return apiRequest(`${API_URL}/parametros-valores/${id}`, 'PUT', param);
 };
+
 export const deleteParametroValor = (id: number): Promise<void> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
+    if (API_MODE === 'mock') return mockApi.deleteMockParametroValor(id);
     return apiRequest(`${API_URL}/parametros-valores/${id}`, 'DELETE');
 };
 
-// Parâmetros de Taxa
+// FIX: Implemented CRUD for ParametrosTaxas
 export const createParametroTaxa = (param: Omit<ParametroTaxa, 'ID_Taxa'>): Promise<ParametroTaxa> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
+    if (API_MODE === 'mock') return mockApi.createMockParametroTaxa(param);
     return apiRequest(`${API_URL}/parametros-taxas`, 'POST', param);
 };
+
 export const updateParametroTaxa = (id: number, param: ParametroTaxa): Promise<ParametroTaxa> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
+    if (API_MODE === 'mock') return mockApi.updateMockParametroTaxa(id, param);
     return apiRequest(`${API_URL}/parametros-taxas/${id}`, 'PUT', param);
 };
+
 export const deleteParametroTaxa = (id: number): Promise<void> => {
-    if (API_MODE === 'mock') throw new Error("Função não implementada em modo mock.");
+    if (API_MODE === 'mock') return mockApi.deleteMockParametroTaxa(id);
     return apiRequest(`${API_URL}/parametros-taxas/${id}`, 'DELETE');
 };
 
+
 // --- Importação ---
+
+export const importCargasFromERP = async (startDate: string, endDate:string): Promise<{ message: string; count: number }> => {
+    if (API_MODE === 'mock') return mockApi.importMockCargasFromERP(startDate, endDate);
+    
+    const body = { sIni: startDate, sFim: endDate };
+    return apiRequest(`${API_URL}/cargas-erp/import`, 'POST', body);
+};
+
 export const importData = async (file: File, type: 'veiculos' | 'cargas' | 'parametros-valores' | 'parametros-taxas'): Promise<{ message: string; count: number }> => {
-    // TODO: A importação real deve fazer upload do arquivo para a API.
-    // Manteremos a lógica de parse no frontend por enquanto, que funcionará no modo mock.
     if (API_MODE === 'api') {
-        alert("A importação via API ainda não foi implementada. Os dados não serão salvos.");
+        alert("A importação via CSV para a API ainda não foi implementada. Use a importação do ERP.");
     }
 
     return new Promise((resolve, reject) => {
@@ -179,8 +170,9 @@ export const importData = async (file: File, type: 'veiculos' | 'cargas' | 'para
             skipEmptyLines: true,
             complete: (results: { data: any[] }) => {
                 console.log(`Dados para importar para '${type}':`, results.data);
-                // No modo mock, isso não faz nada. No modo API, deveria enviar `results.data` para um endpoint de lote.
-                resolve({ message: `Arquivo processado.`, count: results.data.length });
+                // Aqui você pode chamar as funções de mock para adicionar os dados
+                // Ex: results.data.forEach(item => mockApi.createMockCarga(item));
+                resolve({ message: `Arquivo CSV processado localmente.`, count: results.data.length });
             },
             error: (error: any) => reject(new Error('Erro ao ler o arquivo CSV: ' + error.message))
         });

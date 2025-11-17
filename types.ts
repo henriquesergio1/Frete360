@@ -16,6 +16,7 @@ export interface Carga {
   DataCTE: string;
   KM: number;
   COD_VEICULO: string;
+  Origem?: 'ERP' | 'CSV' | 'Manual';
   Excluido?: boolean;
   MotivoExclusao?: string;
 }

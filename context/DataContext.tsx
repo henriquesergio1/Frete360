@@ -142,7 +142,8 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     };
 
     const addCarga = async (carga: Omit<Carga, 'ID_Carga'>) => {
-        await api.createCarga(carga);
+        const cargaComOrigem = { ...carga, Origem: carga.Origem || 'Manual' } as Omit<Carga, 'ID_Carga'>;
+        await api.createCarga(cargaComOrigem);
         await reloadData('cargas');
     };
     const updateCarga = async (carga: Carga) => {

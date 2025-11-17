@@ -12,14 +12,13 @@ const mockVeiculos: Veiculo[] = [
 ];
 
 // Cargas (Manuais e do ERP)
-const mockCargas: Carga[] = [
-    // Cargas do ERP (simuladas com ID negativo)
-    { ID_Carga: -1, NumeroCarga: 'ERP-77890', Cidade: 'Belo Horizonte', ValorCTE: 1200.50, DataCTE: '2024-05-20', KM: 350, COD_VEICULO: 'TRUCK001' },
-    { ID_Carga: -2, NumeroCarga: 'ERP-77891', Cidade: 'Rio de Janeiro', ValorCTE: 1850.00, DataCTE: '2024-05-21', KM: 450, COD_VEICULO: 'TRUCK001' },
-    { ID_Carga: -3, NumeroCarga: 'ERP-77892', Cidade: 'Curitiba', ValorCTE: 2200.75, DataCTE: '2024-05-22', KM: 850, COD_VEICULO: 'TRUCK003' },
-    // Cargas Manuais (simuladas com ID positivo)
-    { ID_Carga: 1, NumeroCarga: 'MAN-001', Cidade: 'Campinas', ValorCTE: 500.00, DataCTE: '2024-05-23', KM: 95, COD_VEICULO: 'TRUCK002' },
-    { ID_Carga: 2, NumeroCarga: 'MAN-002', Cidade: 'Santos', ValorCTE: 450.00, DataCTE: '2024-05-24', KM: 75, COD_VEICULO: 'TRUCK002', Excluido: true, MotivoExclusao: 'Lançamento duplicado' },
+let mockCargas: Carga[] = [
+    { ID_Carga: 1, NumeroCarga: 'ERP-77890', Cidade: 'Belo Horizonte', ValorCTE: 1200.50, DataCTE: '2024-05-20', KM: 350, COD_VEICULO: 'TRUCK001', Origem: 'ERP' },
+    { ID_Carga: 2, NumeroCarga: 'ERP-77891', Cidade: 'Rio de Janeiro', ValorCTE: 1850.00, DataCTE: '2024-05-21', KM: 450, COD_VEICULO: 'TRUCK001', Origem: 'ERP' },
+    { ID_Carga: 3, NumeroCarga: 'ERP-77892', Cidade: 'Curitiba', ValorCTE: 2200.75, DataCTE: '2024-05-22', KM: 850, COD_VEICULO: 'TRUCK003', Origem: 'ERP' },
+    { ID_Carga: 4, NumeroCarga: 'MAN-001', Cidade: 'Campinas', ValorCTE: 500.00, DataCTE: '2024-05-23', KM: 95, COD_VEICULO: 'TRUCK002', Origem: 'Manual' },
+    { ID_Carga: 5, NumeroCarga: 'MAN-002', Cidade: 'Santos', ValorCTE: 450.00, DataCTE: '2024-05-24', KM: 75, COD_VEICULO: 'TRUCK002', Excluido: true, MotivoExclusao: 'Lançamento duplicado', Origem: 'Manual' },
+    { ID_Carga: 6, NumeroCarga: 'CSV-001', Cidade: 'Goiania', ValorCTE: 3100.00, DataCTE: '2024-05-25', KM: 950, COD_VEICULO: 'TRUCK003', Origem: 'CSV' },
 ];
 
 // Parâmetros de Valor
@@ -90,7 +89,6 @@ export const getMockVeiculos = async (): Promise<Veiculo[]> => {
     return Promise.resolve([...mockVeiculos]);
 };
 
-// FIX: Update getMockCargas to accept parameters for filtering.
 export const getMockCargas = async (params?: { veiculoCod?: string, data?: string }): Promise<Carga[]> => {
     await delay(100);
     let cargas = [...mockCargas];
@@ -107,7 +105,7 @@ export const getMockCargas = async (params?: { veiculoCod?: string, data?: strin
 
 export const getMockCargasManuais = async (): Promise<Carga[]> => {
     await delay(100);
-    return Promise.resolve(mockCargas.filter(c => c.ID_Carga > 0));
+    return Promise.resolve(mockCargas);
 };
 
 export const getMockParametrosValores = async (): Promise<ParametroValor[]> => {
@@ -127,4 +125,111 @@ export const getMockMotivosSubstituicao = async (): Promise<MotivoSubstituicao[]
 export const getMockLancamentos = async (): Promise<Lancamento[]> => {
     await delay(150);
     return Promise.resolve([...mockLancamentos]);
+};
+
+export const importMockCargasFromERP = async (startDate: string, endDate: string): Promise<{ message: string; count: number }> => {
+    await delay(1500);
+    const count = Math.floor(Math.random() * 10) + 1; // Simulate importing 1 to 10 cargas
+    const newCargas: Carga[] = Array.from({ length: count }, (_, i) => ({
+        ID_Carga: Math.max(...mockCargas.map(c => c.ID_Carga)) + 1 + i,
+        NumeroCarga: `ERP-SIM-${Math.floor(Math.random() * 10000)}`,
+        Cidade: ['Sao Paulo', 'Goiania', 'Brasilia'][Math.floor(Math.random() * 3)],
+        ValorCTE: Math.random() * 2000 + 500,
+        DataCTE: startDate,
+        KM: Math.random() * 500 + 50,
+        COD_VEICULO: ['TRUCK001', 'TRUCK002', 'TRUCK003'][Math.floor(Math.random() * 3)],
+        Origem: 'ERP',
+    }));
+    mockCargas.push(...newCargas);
+    console.log(`MOCK IMPORT: Adicionando ${count} cargas entre ${startDate} e ${endDate}`);
+    return { message: `${count} novas cargas importadas do ERP com sucesso.`, count };
+};
+
+export const createMockVeiculo = async (veiculo: Omit<Veiculo, 'ID_Veiculo'>): Promise<Veiculo> => {
+    await delay(100);
+    const newId = Math.max(0, ...mockVeiculos.map(v => v.ID_Veiculo)) + 1;
+    const newVeiculo: Veiculo = { ...veiculo, ID_Veiculo: newId };
+    mockVeiculos.push(newVeiculo);
+    return Promise.resolve(newVeiculo);
+};
+
+export const updateMockVeiculo = async (id: number, veiculo: Veiculo): Promise<Veiculo> => {
+    await delay(100);
+    const index = mockVeiculos.findIndex(v => v.ID_Veiculo === id);
+    if (index === -1) return Promise.reject(new Error("Veículo não encontrado"));
+    mockVeiculos[index] = { ...veiculo };
+    return Promise.resolve(mockVeiculos[index]);
+};
+
+export const createMockCarga = async (carga: Omit<Carga, 'ID_Carga'>): Promise<Carga> => {
+    await delay(100);
+    const newId = Math.max(0, ...mockCargas.map(c => c.ID_Carga)) + 1;
+    const newCarga: Carga = { ...carga, ID_Carga: newId, Origem: carga.Origem || 'Manual' };
+    mockCargas.push(newCarga);
+    return Promise.resolve(newCarga);
+};
+
+export const updateMockCarga = async (id: number, carga: Carga): Promise<Carga> => {
+    await delay(100);
+    const index = mockCargas.findIndex(c => c.ID_Carga === id);
+    if (index === -1) return Promise.reject(new Error("Carga não encontrada"));
+    mockCargas[index] = { ...carga };
+    return Promise.resolve(mockCargas[index]);
+};
+
+export const deleteMockCarga = async (id: number, motivo: string): Promise<void> => {
+    await delay(100);
+    const index = mockCargas.findIndex(c => c.ID_Carga === id);
+    if (index === -1) return Promise.reject(new Error("Carga não encontrada"));
+    mockCargas[index].Excluido = true;
+    mockCargas[index].MotivoExclusao = motivo;
+    return Promise.resolve();
+};
+
+export const createMockParametroValor = async (param: Omit<ParametroValor, 'ID_Parametro'>): Promise<ParametroValor> => {
+    await delay(100);
+    const newId = Math.max(0, ...mockParametrosValores.map(p => p.ID_Parametro)) + 1;
+    const newParam: ParametroValor = { ...param, ID_Parametro: newId };
+    mockParametrosValores.push(newParam);
+    return Promise.resolve(newParam);
+};
+
+export const updateMockParametroValor = async (id: number, param: ParametroValor): Promise<ParametroValor> => {
+    await delay(100);
+    const index = mockParametrosValores.findIndex(p => p.ID_Parametro === id);
+    if (index === -1) return Promise.reject(new Error("Parâmetro não encontrado"));
+    mockParametrosValores[index] = { ...param };
+    return Promise.resolve(mockParametrosValores[index]);
+};
+
+export const deleteMockParametroValor = async (id: number): Promise<void> => {
+    await delay(100);
+    const index = mockParametrosValores.findIndex(p => p.ID_Parametro === id);
+    if (index === -1) return Promise.reject(new Error("Parâmetro não encontrado"));
+    mockParametrosValores.splice(index, 1);
+    return Promise.resolve();
+};
+
+export const createMockParametroTaxa = async (param: Omit<ParametroTaxa, 'ID_Taxa'>): Promise<ParametroTaxa> => {
+    await delay(100);
+    const newId = Math.max(0, ...mockParametrosTaxas.map(p => p.ID_Taxa)) + 1;
+    const newParam: ParametroTaxa = { ...param, ID_Taxa: newId };
+    mockParametrosTaxas.push(newParam);
+    return Promise.resolve(newParam);
+};
+
+export const updateMockParametroTaxa = async (id: number, param: ParametroTaxa): Promise<ParametroTaxa> => {
+    await delay(100);
+    const index = mockParametrosTaxas.findIndex(p => p.ID_Taxa === id);
+    if (index === -1) return Promise.reject(new Error("Taxa não encontrada"));
+    mockParametrosTaxas[index] = { ...param };
+    return Promise.resolve(mockParametrosTaxas[index]);
+};
+
+export const deleteMockParametroTaxa = async (id: number): Promise<void> => {
+    await delay(100);
+    const index = mockParametrosTaxas.findIndex(p => p.ID_Taxa === id);
+    if (index === -1) return Promise.reject(new Error("Taxa não encontrada"));
+    mockParametrosTaxas.splice(index, 1);
+    return Promise.resolve();
 };

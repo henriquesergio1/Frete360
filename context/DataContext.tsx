@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Veiculo, ParametroValor, ParametroTaxa, Carga, Lancamento } from '../types';
+import { Veiculo, ParametroValor, ParametroTaxa, Carga, Lancamento, NewLancamento } from '../types';
 import * as api from '../services/apiService';
+import { API_MODE } from '../api.config';
 
 interface DataContextType {
     veiculos: Veiculo[];
@@ -18,7 +19,7 @@ interface DataContextType {
     reloadData: (dataType: 'veiculos' | 'cargas' | 'parametrosValores' | 'parametrosTaxas' | 'lancamentos' | 'all') => Promise<void>;
     
     // CRUD operations
-    addLancamento: (lancamento: Omit<Lancamento, 'ID_Lancamento'>) => Promise<Lancamento>;
+    addLancamento: (lancamento: NewLancamento) => Promise<Lancamento>;
     updateLancamento: (lancamento: Lancamento) => Promise<Lancamento>;
     deleteLancamento: (id: number, motivo: string) => Promise<void>;
     
@@ -54,7 +55,7 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
                 api.getVeiculos(),
                 api.getParametrosValores(),
                 api.getParametrosTaxas(),
-                api.getCargasManuais(), // Agora busca apenas as manuais para a gestão
+                api.getCargasManuais(),
                 api.getLancamentos(),
             ]);
             setVeiculos(veiculosData);
@@ -63,8 +64,11 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
             setCargas(cargasManuaisData);
             setLancamentos(lancamentosData);
         } catch (err: any) {
-            console.error("Erro ao carregar dados da API:", err);
-            setError(err.message || 'Falha ao carregar dados iniciais da API.');
+            console.error("Erro ao carregar dados:", err);
+            const errorMessage = API_MODE === 'api' 
+                ? 'Falha ao conectar com o backend. Verifique se a API está em execução.' 
+                : 'Falha ao carregar dados fictícios.';
+            setError(`${errorMessage} Detalhe: ${err.message}`);
         } finally {
             setLoading(false);
         }
@@ -91,7 +95,7 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
             return;
         }
         try {
-            setLoading(true);
+            // setLoading(true); // Opcional: mostrar loading em recargas parciais
             switch (dataType) {
                 case 'veiculos': setVeiculos(await api.getVeiculos()); break;
                 case 'cargas': setCargas(await api.getCargasManuais()); break;
@@ -102,22 +106,25 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
         } catch (err: any) {
             setError(`Falha ao recarregar dados de ${dataType}: ${err.message}`);
         } finally {
-            setLoading(false);
+            // setLoading(false);
         }
     }, [loadInitialData]);
     
     // --- CRUD Handlers ---
 
-    const addLancamento = async (lancamento: Omit<Lancamento, 'ID_Lancamento'>): Promise<Lancamento> => {
+    const addLancamento = async (lancamento: NewLancamento): Promise<Lancamento> => {
         const newLancamento = await api.createLancamento(lancamento);
-        await reloadData('lancamentos'); // Recarrega para obter o estado mais recente do servidor
+        await reloadData('lancamentos');
         return newLancamento;
     };
 
     const updateLancamento = async (lancamento: Lancamento): Promise<Lancamento> => {
-        const updatedLancamento = await api.updateLancamento(lancamento.ID_Lancamento, lancamento);
-        await reloadData('lancamentos');
-        return updatedLancamento;
+        // A API atual não suporta edição, apenas criação de um novo e exclusão do antigo.
+        // Simulamos aqui para o modo MOCK, mas a API real deveria implementar isso.
+        console.warn("A atualização de lançamentos não é suportada pela API. Criando um novo...");
+        const novoLancamento = await addLancamento(lancamento);
+        await deleteLancamento(lancamento.ID_Lancamento, lancamento.Motivo || 'Substituição por edição.');
+        return novoLancamento;
     };
 
     const deleteLancamento = async (id: number, motivo: string) => {
@@ -143,11 +150,8 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
         await reloadData('cargas');
     };
     const deleteCarga = async (id: number, motivo: string) => {
-        const cargaToUpdate = cargas.find(c => c.ID_Carga === id);
-        if(cargaToUpdate) {
-             await api.updateCarga(id, { ...cargaToUpdate, Excluido: true, MotivoExclusao: motivo });
-             await reloadData('cargas');
-        }
+        await api.deleteCarga(id, motivo);
+        await reloadData('cargas');
     };
 
     return (

@@ -6,7 +6,7 @@ interface DataContextType {
     veiculos: Veiculo[];
     parametrosValores: ParametroValor[];
     parametrosTaxas: ParametroTaxa[];
-    cargas: Carga[];
+    cargas: Carga[]; // Manterá apenas as cargas manuais para a tela de gestão
     lancamentos: Lancamento[];
     tiposVeiculo: string[];
     cidades: string[];
@@ -36,7 +36,7 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
     const [parametrosValores, setParametrosValores] = useState<ParametroValor[]>([]);
     const [parametrosTaxas, setParametrosTaxas] = useState<ParametroTaxa[]>([]);
-    const [cargas, setCargas] = useState<Carga[]>([]);
+    const [cargas, setCargas] = useState<Carga[]>([]); // Cargas manuais
     const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
     
     const [tiposVeiculo, setTiposVeiculo] = useState<string[]>([]);
@@ -50,20 +50,21 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
         try {
             setError(null);
             setLoading(true);
-            const [veiculosData, pValoresData, pTaxasData, cargasData, lancamentosData] = await Promise.all([
+            const [veiculosData, pValoresData, pTaxasData, cargasManuaisData, lancamentosData] = await Promise.all([
                 api.getVeiculos(),
                 api.getParametrosValores(),
                 api.getParametrosTaxas(),
-                api.getCargas(),
+                api.getCargasManuais(), // Agora busca apenas as manuais para a gestão
                 api.getLancamentos(),
             ]);
             setVeiculos(veiculosData);
             setParametrosValores(pValoresData);
             setParametrosTaxas(pTaxasData);
-            setCargas(cargasData);
+            setCargas(cargasManuaisData);
             setLancamentos(lancamentosData);
         } catch (err: any) {
-            setError(err.message || 'Falha ao carregar dados iniciais.');
+            console.error("Erro ao carregar dados da API:", err);
+            setError(err.message || 'Falha ao carregar dados iniciais da API.');
         } finally {
             setLoading(false);
         }
@@ -74,13 +75,12 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     }, [loadInitialData]);
 
     useEffect(() => {
-        // Derive types and cities from loaded data
         const allTipos = [...new Set(veiculos.map(v => v.TipoVeiculo))].sort();
         const allCidades = [...new Set([
             ...cargas.map(c => c.Cidade),
             ...parametrosValores.map(p => p.Cidade),
             ...parametrosTaxas.map(t => t.Cidade)
-        ])].sort();
+        ])].filter(Boolean).sort();
         setTiposVeiculo(allTipos);
         setCidades(allCidades);
     }, [veiculos, cargas, parametrosValores, parametrosTaxas]);
@@ -94,7 +94,7 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
             setLoading(true);
             switch (dataType) {
                 case 'veiculos': setVeiculos(await api.getVeiculos()); break;
-                case 'cargas': setCargas(await api.getCargas()); break;
+                case 'cargas': setCargas(await api.getCargasManuais()); break;
                 case 'parametrosValores': setParametrosValores(await api.getParametrosValores()); break;
                 case 'parametrosTaxas': setParametrosTaxas(await api.getParametrosTaxas()); break;
                 case 'lancamentos': setLancamentos(await api.getLancamentos()); break;
@@ -110,44 +110,45 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
 
     const addLancamento = async (lancamento: Omit<Lancamento, 'ID_Lancamento'>): Promise<Lancamento> => {
         const newLancamento = await api.createLancamento(lancamento);
-        setLancamentos(prev => [...prev, newLancamento]);
+        await reloadData('lancamentos'); // Recarrega para obter o estado mais recente do servidor
         return newLancamento;
     };
+
     const updateLancamento = async (lancamento: Lancamento): Promise<Lancamento> => {
         const updatedLancamento = await api.updateLancamento(lancamento.ID_Lancamento, lancamento);
-        setLancamentos(prev => prev.map(l => l.ID_Lancamento === updatedLancamento.ID_Lancamento ? updatedLancamento : l));
+        await reloadData('lancamentos');
         return updatedLancamento;
     };
+
     const deleteLancamento = async (id: number, motivo: string) => {
         await api.deleteLancamento(id, motivo);
-        const lancamento = lancamentos.find(l => l.ID_Lancamento === id);
-        if(lancamento){
-             setLancamentos(prev => prev.map(l => l.ID_Lancamento === id ? { ...l, Excluido: true, MotivoExclusao: motivo } : l));
-        }
+        await reloadData('lancamentos');
     };
     
     const addVeiculo = async (veiculo: Omit<Veiculo, 'ID_Veiculo'>) => {
-        const newVeiculo = await api.createVeiculo(veiculo);
-        setVeiculos(prev => [...prev, newVeiculo]);
+        await api.createVeiculo(veiculo);
+        await reloadData('veiculos');
     };
     const updateVeiculo = async (veiculo: Veiculo) => {
-        const updatedVeiculo = await api.updateVeiculo(veiculo.ID_Veiculo, veiculo);
-        setVeiculos(prev => prev.map(v => v.ID_Veiculo === updatedVeiculo.ID_Veiculo ? updatedVeiculo : v));
+        await api.updateVeiculo(veiculo.ID_Veiculo, veiculo);
+        await reloadData('veiculos');
     };
 
     const addCarga = async (carga: Omit<Carga, 'ID_Carga'>) => {
-        const newCarga = await api.createCarga(carga);
-        setCargas(prev => [...prev, newCarga]);
+        await api.createCarga(carga);
+        await reloadData('cargas');
     };
     const updateCarga = async (carga: Carga) => {
-        const updatedCarga = await api.updateCarga(carga.ID_Carga, carga);
-        setCargas(prev => prev.map(c => c.ID_Carga === updatedCarga.ID_Carga ? updatedCarga : c));
+        await api.updateCarga(carga.ID_Carga, carga);
+        await reloadData('cargas');
     };
     const deleteCarga = async (id: number, motivo: string) => {
-        await api.deleteCarga(id, motivo);
-        setCargas(prev => prev.map(c => c.ID_Carga === id ? { ...c, Excluido: true, MotivoExclusao: motivo } : c));
+        const cargaToUpdate = cargas.find(c => c.ID_Carga === id);
+        if(cargaToUpdate) {
+             await api.updateCarga(id, { ...cargaToUpdate, Excluido: true, MotivoExclusao: motivo });
+             await reloadData('cargas');
+        }
     };
-
 
     return (
         <DataContext.Provider value={{

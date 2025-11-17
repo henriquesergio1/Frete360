@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  fretes-api:
+    # IMPORTANTE: Altere a URL abaixo para o endereço do seu repositório no GitHub.
+    # O Portainer usará isso para baixar e construir a API automaticamente.
+    # O '#main' no final especifica o branch. Mude se você usar um branch diferente.
+    build:
+      context: https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git#main
+      dockerfile: api/Dockerfile
+    container_name: fretes-api
+    restart: unless-stopped
+    ports:
+      # Mapeia a porta 3000 do container para a porta 3000 do seu servidor.
+      # Se a porta 3000 já estiver em uso no seu servidor, mude o primeiro número (ex: "3001:3000").
+      - "3000:3000"
+    
+    # --- CONFIGURAÇÃO OBRIGATÓRIA ---
+    # Preencha as variáveis abaixo com os dados de conexão dos seus bancos de dados.
+    # Estes valores serão injetados no container da API de forma segura.
+    environment:
+      # Configurações da API
+      - API_PORT=3000
+
+      # Conexão com o Banco de Dados Principal (ODIN)
+      - DB_SERVER_ODIN=10.10.10.100
+      - DB_DATABASE_ODIN=Fretes
+      - DB_USER_ODIN=seu_usuario_de_escrita # <-- MUDE AQUI
+      - DB_PASSWORD_ODIN=sua_senha_de_escrita # <-- MUDE AQUI
+
+      # Conexão com o Banco de Dados de Consulta (ERP)
+      - DB_SERVER_ERP=consulta.flagcloud.com.br
+      - DB_DATABASE_ERP=flexx10071188
+      - DB_USER_ERP=seu_usuario_de_leitura # <-- MUDE AQUI
+      - DB_PASSWORD_ERP=sua_senha_de_leitura # <-- MUDE AQUI

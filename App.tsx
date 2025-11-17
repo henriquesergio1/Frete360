@@ -1,0 +1,123 @@
+import React, { useState, useContext } from 'react';
+import { LancamentoFrete } from './components/LancamentoFrete';
+import { Dashboard } from './components/Dashboard';
+import { Relatorios } from './components/Relatorios';
+import { Importacao } from './components/Importacao';
+import { GestaoVeiculos } from './components/GestaoVeiculos';
+import { GestaoParametros } from './components/GestaoParametros';
+import { GestaoCargas } from './components/GestaoCargas';
+import { DataProvider, DataContext } from './context/DataContext';
+import { ChartBarIcon, CogIcon, PlusCircleIcon, TruckIcon, DocumentReportIcon, CloudUploadIcon, BoxIcon, SpinnerIcon, XCircleIcon } from './components/icons';
+
+type View = 'dashboard' | 'lancamento' | 'veiculos' | 'cargas' | 'parametros' | 'relatorios' | 'importacao';
+
+const Sidebar: React.FC<{ activeView: View; setView: (view: View) => void }> = ({ activeView, setView }) => {
+    const navItems = [
+        { id: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
+        { id: 'lancamento', label: 'Novo Lançamento', icon: PlusCircleIcon },
+        { id: 'veiculos', label: 'Veículos', icon: TruckIcon },
+        { id: 'cargas', label: 'Cargas', icon: BoxIcon },
+        { id: 'relatorios', label: 'Relatórios', icon: DocumentReportIcon },
+        { id: 'importacao', label: 'Importação', icon: CloudUploadIcon },
+        { id: 'parametros', label: 'Parâmetros', icon: CogIcon },
+    ] as const;
+
+    return (
+        <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
+            <div className="flex items-center justify-center h-20 border-b border-slate-800">
+                <TruckIcon className="h-8 w-8 text-sky-500" />
+                <h1 className="text-xl font-bold text-white ml-3">Fretes</h1>
+            </div>
+            <nav className="flex-1 px-4 py-6 space-y-2">
+                {navItems.map(item => (
+                    <button
+                        key={item.id}
+                        onClick={() => setView(item.id)}
+                        className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                            activeView === item.id 
+                                ? 'bg-sky-500 text-white' 
+                                : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                        }`}
+                    >
+                        <item.icon className="h-5 w-5 mr-3" />
+                        <span>{item.label}</span>
+                    </button>
+                ))}
+            </nav>
+            <div className="p-4 border-t border-slate-800">
+                <p className="text-xs text-slate-500 text-center">&copy; 2024 Fretes</p>
+            </div>
+        </div>
+    );
+};
+
+const AppContent: React.FC = () => {
+    const { loading, error } = useContext(DataContext);
+    const [activeView, setActiveView] = useState<View>('dashboard');
+
+    const renderContent = () => {
+        switch (activeView) {
+            case 'lancamento':
+                return <LancamentoFrete setView={setActiveView} />;
+            case 'importacao':
+                return <Importacao />;
+            case 'dashboard':
+                return <Dashboard />;
+            case 'veiculos':
+                return <GestaoVeiculos />;
+            case 'cargas':
+                return <GestaoCargas />;
+            case 'relatorios':
+                return <Relatorios setView={setActiveView} />;
+            case 'parametros':
+                return <GestaoParametros />;
+            default:
+                return <Dashboard />;
+        }
+    };
+    
+    if (loading) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-slate-900">
+                <div className="flex flex-col items-center text-slate-400">
+                    <SpinnerIcon className="w-12 h-12 text-sky-500" />
+                    <p className="mt-4 text-lg">Carregando dados...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+         return (
+            <div className="flex h-screen w-full items-center justify-center bg-slate-900 p-4">
+                <div className="flex flex-col items-center text-center max-w-lg p-8 bg-slate-800 rounded-lg border border-red-700/50">
+                    <XCircleIcon className="w-12 h-12 text-red-500" />
+                    <h2 className="mt-4 text-xl font-bold text-white">Erro de Conexão</h2>
+                    <p className="mt-2 text-slate-400">Não foi possível carregar os dados do sistema. Verifique se o serviço de backend está em execução e tente novamente.</p>
+                    <p className="mt-4 text-xs text-slate-500 bg-slate-900 p-2 rounded-md font-mono">{error}</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex h-screen bg-slate-800 text-slate-100">
+            <Sidebar activeView={activeView} setView={setActiveView} />
+            <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-800">
+                <div className="max-w-7xl mx-auto">
+                   {renderContent()}
+                </div>
+            </main>
+        </div>
+    );
+};
+
+const App: React.FC = () => {
+    return (
+        <DataProvider>
+            <AppContent />
+        </DataProvider>
+    );
+}
+
+export default App;

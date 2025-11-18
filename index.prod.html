@@ -8,17 +8,8 @@
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
 <title>Fretes</title>
-<script>
-  // CONFIGURAÇÃO DE AMBIENTE - PRODUÇÃO
-  // O Nginx vai rotear todas as chamadas que começam com '/api' para o container da API.
-  // O arquivo JavaScript agora também tem uma trava interna (NODE_ENV='production') que força o uso da API.
-  window.APP_CONFIG = {
-    mode: 'api',
-    apiUrl: '/api' 
-  };
-</script>
-<!-- Cache busting v4 -->
-<link href="/dist/output.css?v=prod-v4" rel="stylesheet">
+<!-- Cache busting v5 -->
+<link href="/dist/output.css?v=prod-v5" rel="stylesheet">
 <style>
 /* Custom scrollbar for better aesthetics */
 ::-webkit-scrollbar {
@@ -39,7 +30,7 @@
 </head>
 <body class="bg-slate-900 text-slate-100">
 <div id="root"></div>
-<!-- Cache busting v4 -->
-<script type="module" src="/dist/bundle.js?v=prod-v4"></script>
+<!-- Cache busting v5 -->
+<script type="module" src="/dist/bundle.js?v=prod-v5"></script>
 </body>
 </html>

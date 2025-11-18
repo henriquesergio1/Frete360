@@ -3,47 +3,24 @@ import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lanc
 import * as mockApi from '../api/mockData.ts';
 import Papa from 'papaparse';
 
-// --- CONFIGURAÇÃO GLOBAL VIA WINDOW (INJETADA PELO HTML) ---
+// Declaração para o TypeScript entender a variável injetada pelo esbuild
+declare const __USE_MOCK__: boolean;
 
-declare global {
-    interface Window {
-        APP_CONFIG: {
-            mode: 'api' | 'mock';
-            apiUrl: string;
-        }
-    }
-}
+// =============================================================================
+// CONFIGURAÇÃO DE MODO (SIMPLES E DIRETA)
+// =============================================================================
 
-// Helper seguro para ler o ambiente injetado pelo esbuild
-const getEnv = () => {
-    try {
-        // @ts-ignore
-        return process.env.NODE_ENV;
-    } catch (e) {
-        // Fallback caso a injeção falhe (apenas localmente)
-        return 'development';
-    }
-};
+// Se __USE_MOCK__ não estiver definido (ex: erro no build), assume false para segurança em prod.
+// No script 'dev' do package.json, isso é true. No 'build:prod', é false.
+const USE_MOCK = (typeof __USE_MOCK__ !== 'undefined') ? __USE_MOCK__ : false;
 
-// Função auxiliar para pegar a configuração atual em TEMPO DE EXECUÇÃO
-const getConfig = () => {
-    const env = getEnv();
+const API_BASE_URL = '/api';
 
-    // TRAVA DE SEGURANÇA RÍGIDA PARA AMBIENTE DOCKER/PRODUÇÃO
-    if (env === 'production') {
-        return { mode: 'api', apiUrl: '/api' };
-    }
+console.log(`[API SERVICE] Inicializado. Modo Mock Ativo: ${USE_MOCK}`);
 
-    // Comportamento normal para desenvolvimento local
-    if (typeof window !== 'undefined' && window.APP_CONFIG) {
-        return window.APP_CONFIG;
-    }
-    
-    // Fallback padrão
-    return { mode: 'api', apiUrl: '/api' };
-};
-
-// --- UTILITÁRIOS ---
+// =============================================================================
+// UTILITÁRIOS API REAL
+// =============================================================================
 
 const handleResponse = async (response: Response) => {
     if (!response.ok) {
@@ -60,8 +37,7 @@ const handleResponse = async (response: Response) => {
 };
 
 const apiRequest = async (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', body?: any) => {
-    const { apiUrl } = getConfig();
-    const cleanUrl = apiUrl.replace(/\/$/, '');
+    const cleanUrl = API_BASE_URL.replace(/\/$/, '');
     const cleanEndpoint = endpoint.replace(/^\//, '');
     const url = `${cleanUrl}/${cleanEndpoint}`;
     
@@ -81,8 +57,7 @@ const apiRequest = async (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', b
 };
 
 const apiGet = async (endpoint: string) => {
-    const { apiUrl } = getConfig();
-    const cleanUrl = apiUrl.replace(/\/$/, '');
+    const cleanUrl = API_BASE_URL.replace(/\/$/, '');
     const cleanEndpoint = endpoint.replace(/^\//, '');
     const url = `${cleanUrl}/${cleanEndpoint}`;
 
@@ -193,60 +168,38 @@ const MockService = {
 };
 
 // =============================================================================
-// EXPORTAÇÕES DINÂMICAS
+// EXPORTAÇÕES - DEFINIDAS NO MOMENTO DO BUILD
 // =============================================================================
 
-// Esta função decide qual serviço usar NO MOMENTO DA CHAMADA
-const getService = () => {
-    const config = getConfig();
-    const env = getEnv();
-    
-    // Log simples na primeira chamada para debug
-    if (!(window as any).hasLoggedApiMode) {
-        console.log(`[API Service] Inicializado. Ambiente: ${env}. Modo Ativo: ${config.mode?.toUpperCase()}`);
-        (window as any).hasLoggedApiMode = true;
-    }
+// O esbuild substituirá USE_MOCK por true ou false durante a compilação.
+// Se for false (Produção), o código do MockService será removido (Tree Shaking)
+// ou o ternário será resolvido estaticamente para RealService.
 
-    // SEGURANÇA ABSOLUTA:
-    // Se o ambiente for de produção, PROÍBE o uso do MockService.
-    // Se a conexão falhar, o usuário verá um erro vermelho na tela, mas NUNCA dados falsos.
-    if (env === 'production') {
-        if (config.mode === 'mock') {
-            const errorMsg = "CRITICAL ERROR: Tentativa de usar dados Mock em Produção bloqueada.";
-            console.error(errorMsg);
-            throw new Error(errorMsg);
-        }
-        return RealService;
-    }
+export const getVeiculos = USE_MOCK ? MockService.getVeiculos : RealService.getVeiculos;
+export const getCargas = USE_MOCK ? MockService.getCargas : RealService.getCargas;
+export const getCargasManuais = USE_MOCK ? MockService.getCargasManuais : RealService.getCargasManuais;
+export const getParametrosValores = USE_MOCK ? MockService.getParametrosValores : RealService.getParametrosValores;
+export const getParametrosTaxas = USE_MOCK ? MockService.getParametrosTaxas : RealService.getParametrosTaxas;
+export const getMotivosSubstituicao = USE_MOCK ? MockService.getMotivosSubstituicao : RealService.getMotivosSubstituicao;
+export const getLancamentos = USE_MOCK ? MockService.getLancamentos : RealService.getLancamentos;
 
-    return config.mode === 'mock' ? MockService : RealService;
-};
+export const createLancamento = USE_MOCK ? MockService.createLancamento : RealService.createLancamento;
+export const deleteLancamento = USE_MOCK ? MockService.deleteLancamento : RealService.deleteLancamento;
 
-export const getVeiculos = () => getService().getVeiculos();
-export const getCargas = (params?: { veiculoCod?: string, data?: string }) => getService().getCargas(params);
-export const getCargasManuais = () => getService().getCargasManuais();
-export const getParametrosValores = () => getService().getParametrosValores();
-export const getParametrosTaxas = () => getService().getParametrosTaxas();
-export const getMotivosSubstituicao = () => getService().getMotivosSubstituicao();
-export const getLancamentos = () => getService().getLancamentos();
+export const createVeiculo = USE_MOCK ? MockService.createVeiculo : RealService.createVeiculo;
+export const updateVeiculo = USE_MOCK ? MockService.updateVeiculo : RealService.updateVeiculo;
 
-export const createLancamento = (data: NewLancamento) => getService().createLancamento(data);
-export const deleteLancamento = (id: number, motivo: string) => getService().deleteLancamento(id, motivo);
+export const createCarga = USE_MOCK ? MockService.createCarga : RealService.createCarga;
+export const updateCarga = USE_MOCK ? MockService.updateCarga : RealService.updateCarga;
+export const deleteCarga = USE_MOCK ? MockService.deleteCarga : RealService.deleteCarga;
 
-export const createVeiculo = (data: Omit<Veiculo, 'ID_Veiculo'>) => getService().createVeiculo(data);
-export const updateVeiculo = (id: number, data: Veiculo) => getService().updateVeiculo(id, data);
+export const createParametroValor = USE_MOCK ? MockService.createParametroValor : RealService.createParametroValor;
+export const updateParametroValor = USE_MOCK ? MockService.updateParametroValor : RealService.updateParametroValor;
+export const deleteParametroValor = USE_MOCK ? MockService.deleteParametroValor : RealService.deleteParametroValor;
 
-export const createCarga = (data: Omit<Carga, 'ID_Carga'>) => getService().createCarga(data);
-export const updateCarga = (id: number, data: Carga) => getService().updateCarga(id, data);
-export const deleteCarga = (id: number, motivo: string) => getService().deleteCarga(id, motivo);
+export const createParametroTaxa = USE_MOCK ? MockService.createParametroTaxa : RealService.createParametroTaxa;
+export const updateParametroTaxa = USE_MOCK ? MockService.updateParametroTaxa : RealService.updateParametroTaxa;
+export const deleteParametroTaxa = USE_MOCK ? MockService.deleteParametroTaxa : RealService.deleteParametroTaxa;
 
-export const createParametroValor = (data: Omit<ParametroValor, 'ID_Parametro'>) => getService().createParametroValor(data);
-export const updateParametroValor = (id: number, data: ParametroValor) => getService().updateParametroValor(id, data);
-export const deleteParametroValor = (id: number) => getService().deleteParametroValor(id);
-
-export const createParametroTaxa = (data: Omit<ParametroTaxa, 'ID_Taxa'>) => getService().createParametroTaxa(data);
-export const updateParametroTaxa = (id: number, data: ParametroTaxa) => getService().updateParametroTaxa(id, data);
-export const deleteParametroTaxa = (id: number) => getService().deleteParametroTaxa(id);
-
-export const importCargasFromERP = (sIni: string, sFim: string) => getService().importCargasFromERP(sIni, sFim);
-export const importData = (file: File, type: any) => getService().importData(file, type);
+export const importCargasFromERP = USE_MOCK ? MockService.importCargasFromERP : RealService.importCargasFromERP;
+export const importData = USE_MOCK ? MockService.importData : RealService.importData;

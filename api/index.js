@@ -275,7 +275,7 @@ app.post('/cargas-erp/import', async (req, res) => {
                             });
                         }
                     });
-                    // AQUI FOI FEITA A ALTERAÇÃO: String(c.NumeroCarga)
+                    // PADRONIZAÇÃO: Conversão explícita para String
                     request.addParameter('num', TYPES.NVarChar, String(c.NumeroCarga)); 
                     request.addParameter('cidade', TYPES.NVarChar, c.Cidade);
                     request.addParameter('valor', TYPES.Decimal, c.ValorCTE); 

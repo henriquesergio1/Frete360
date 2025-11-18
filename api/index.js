@@ -310,7 +310,19 @@ app.post('/cargas-erp/import', async (req, res) => {
                                 res.status(500).json({ message: `Erro ao commitar transação: ${err.message}` });
                             });
                         }
-                        res.status(201).json({ message: `${cargasParaInserir.length} novas cargas importadas com sucesso.`, count: cargasParaInserir.length });
+                        
+                        let finalMessage = `${cargasParaInserir.length} novas cargas importadas com sucesso.`;
+                        
+                        if (missingVehicles.size > 0) {
+                            const missingList = Array.from(missingVehicles).slice(0, 10).join(', ');
+                            const more = missingVehicles.size > 10 ? ', ...' : '';
+                            finalMessage += ` ATENÇÃO: Cargas ignoradas para ${missingVehicles.size} veículo(s) não cadastrado(s): ${missingList}${more}. Cadastre-os e importe novamente.`;
+                        }
+
+                        res.status(201).json({ 
+                            message: finalMessage, 
+                            count: cargasParaInserir.length 
+                        });
                         connection.close();
                     });
 

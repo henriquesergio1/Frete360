@@ -247,7 +247,6 @@ app.post('/cargas-erp/import', async (req, res) => {
         }).filter(c => c !== null);
 
         if (cargasParaInserir.length === 0) {
-             // Feedback detalhado para o usuário
              const missingList = Array.from(missingVehicles).slice(0, 5).join(', ');
              const more = missingVehicles.size > 5 ? '...' : '';
              return res.json({ 
@@ -256,6 +255,7 @@ app.post('/cargas-erp/import', async (req, res) => {
              });
         }
 
+        // --- BATCH INSERT LOGIC ---
         const connection = new Connection(configOdin);
         connection.connect(err => {
             if (err) return res.status(500).json({ message: `Erro de conexão para inserção: ${err.message}` });
@@ -267,23 +267,38 @@ app.post('/cargas-erp/import', async (req, res) => {
                 }
                 
                 try {
-                    // Execução Sequencial para evitar erro de conexão ocupada
-                    for (const c of cargasParaInserir) {
-                        const query = `INSERT INTO CargasManuais (NumeroCarga, Cidade, ValorCTE, DataCTE, KM, COD_VEICULO, Origem) VALUES (@num, @cidade, @valor, @data, @km, @cod, 'ERP');`;
+                    const BATCH_SIZE = 200; // Tamanho seguro para lote (Max parameters SQL Server = 2100)
+                    
+                    for (let i = 0; i < cargasParaInserir.length; i += BATCH_SIZE) {
+                        const batch = cargasParaInserir.slice(i, i + BATCH_SIZE);
                         
-                        // Wrapper Promise para permitir await na execução do SQL
+                        // Constrói a query dinâmica: INSERT INTO ... VALUES (@p0, ...), (@p1, ...)
+                        let query = "INSERT INTO CargasManuais (NumeroCarga, Cidade, ValorCTE, DataCTE, KM, COD_VEICULO, Origem) VALUES ";
+                        const params = [];
+                        
+                        batch.forEach((c, index) => {
+                            query += index > 0 ? ", " : "";
+                            query += `(@num${index}, @cidade${index}, @valor${index}, @data${index}, @km${index}, @cod${index}, 'ERP')`;
+                            
+                            params.push(
+                                { name: `num${index}`, type: TYPES.NVarChar, value: String(c.NumeroCarga) },
+                                { name: `cidade${index}`, type: TYPES.NVarChar, value: c.Cidade },
+                                { name: `valor${index}`, type: TYPES.Decimal, value: c.ValorCTE },
+                                { name: `data${index}`, type: TYPES.Date, value: c.DataCTE },
+                                { name: `km${index}`, type: TYPES.Int, value: c.KM },
+                                { name: `cod${index}`, type: TYPES.NVarChar, value: c.COD_VEICULO }
+                            );
+                        });
+                        
+                        query += ";";
+
+                        // Executa o lote
                         await new Promise((resolve, reject) => {
                             const request = new Request(query, (err) => {
                                 if (err) return reject(err);
                                 resolve();
                             });
-                            // PADRONIZAÇÃO: Conversão explícita para String
-                            request.addParameter('num', TYPES.NVarChar, String(c.NumeroCarga)); 
-                            request.addParameter('cidade', TYPES.NVarChar, c.Cidade);
-                            request.addParameter('valor', TYPES.Decimal, c.ValorCTE); 
-                            request.addParameter('data', TYPES.Date, c.DataCTE);
-                            request.addParameter('km', TYPES.Int, c.KM); 
-                            request.addParameter('cod', TYPES.NVarChar, c.COD_VEICULO);
+                            params.forEach(p => request.addParameter(p.name, p.type, p.value));
                             connection.execSql(request);
                         });
                     }
@@ -300,9 +315,10 @@ app.post('/cargas-erp/import', async (req, res) => {
                     });
 
                 } catch (error) {
+                    console.error("Erro durante inserção em lote:", error);
                     connection.rollbackTransaction(() => {
                         connection.close();
-                        res.status(500).json({ message: `Erro ao inserir carga (Rollback realizado): ${error.message}` });
+                        res.status(500).json({ message: `Erro ao inserir cargas (Rollback realizado): ${error.message}` });
                     });
                 }
             });

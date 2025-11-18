@@ -135,7 +135,7 @@ app.post('/cargas-manuais', async (req, res) => {
                    OUTPUT INSERTED.* 
                    VALUES (@num, @cidade, @valor, @data, @km, @cod, @origem);`;
     const params = [
-        { name: 'num', type: TYPES.NVarChar, value: c.NumeroCarga }, { name: 'cidade', type: TYPES.NVarChar, value: c.Cidade },
+        { name: 'num', type: TYPES.NVarChar, value: String(c.NumeroCarga) }, { name: 'cidade', type: TYPES.NVarChar, value: c.Cidade },
         { name: 'valor', type: TYPES.Decimal, value: c.ValorCTE }, { name: 'data', type: TYPES.Date, value: c.DataCTE },
         { name: 'km', type: TYPES.Int, value: c.KM }, { name: 'cod', type: TYPES.NVarChar, value: c.COD_VEICULO },
         { name: 'origem', type: TYPES.NVarChar, value: c.Origem || 'Manual' },
@@ -159,7 +159,7 @@ app.put('/cargas-manuais/:id', async (req, res) => {
     } else { // Lógica para edição
         query = `UPDATE CargasManuais SET NumeroCarga = @num, Cidade = @cidade, ValorCTE = @valor, DataCTE = @data, KM = @km, COD_VEICULO = @cod OUTPUT INSERTED.* WHERE ID_Carga = @id;`;
         params = [
-            { name: 'id', type: TYPES.Int, value: id }, { name: 'num', type: TYPES.NVarChar, value: c.NumeroCarga },
+            { name: 'id', type: TYPES.Int, value: id }, { name: 'num', type: TYPES.NVarChar, value: String(c.NumeroCarga) },
             { name: 'cidade', type: TYPES.NVarChar, value: c.Cidade }, { name: 'valor', type: TYPES.Decimal, value: c.ValorCTE },
             { name: 'data', type: TYPES.Date, value: c.DataCTE }, { name: 'km', type: TYPES.Int, value: c.KM },
             { name: 'cod', type: TYPES.NVarChar, value: c.COD_VEICULO },
@@ -275,9 +275,13 @@ app.post('/cargas-erp/import', async (req, res) => {
                             });
                         }
                     });
-                    request.addParameter('num', TYPES.NVarChar, c.NumeroCarga); request.addParameter('cidade', TYPES.NVarChar, c.Cidade);
-                    request.addParameter('valor', TYPES.Decimal, c.ValorCTE); request.addParameter('data', TYPES.Date, c.DataCTE);
-                    request.addParameter('km', TYPES.Int, c.KM); request.addParameter('cod', TYPES.NVarChar, c.COD_VEICULO);
+                    // AQUI FOI FEITA A ALTERAÇÃO: String(c.NumeroCarga)
+                    request.addParameter('num', TYPES.NVarChar, String(c.NumeroCarga)); 
+                    request.addParameter('cidade', TYPES.NVarChar, c.Cidade);
+                    request.addParameter('valor', TYPES.Decimal, c.ValorCTE); 
+                    request.addParameter('data', TYPES.Date, c.DataCTE);
+                    request.addParameter('km', TYPES.Int, c.KM); 
+                    request.addParameter('cod', TYPES.NVarChar, c.COD_VEICULO);
                     connection.execSql(request);
                 });
             });
@@ -356,7 +360,7 @@ app.post('/lancamentos', (req, res) => {
                         }
                     });
                     requestCarga.addParameter('idl', TYPES.Int, newLancamentoId); requestCarga.addParameter('idc', TYPES.Int, c.ID_Carga);
-                    requestCarga.addParameter('num', TYPES.NVarChar, c.NumeroCarga); requestCarga.addParameter('cidade', TYPES.NVarChar, c.Cidade);
+                    requestCarga.addParameter('num', TYPES.NVarChar, String(c.NumeroCarga)); requestCarga.addParameter('cidade', TYPES.NVarChar, c.Cidade);
                     requestCarga.addParameter('valor', TYPES.Decimal, c.ValorCTE); requestCarga.addParameter('data', TYPES.Date, c.DataCTE);
                     requestCarga.addParameter('km', TYPES.Int, c.KM); requestCarga.addParameter('cod', TYPES.NVarChar, c.COD_VEICULO);
                     connection.execSql(requestCarga);

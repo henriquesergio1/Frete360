@@ -1,8 +1,9 @@
+
 import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento } from '../types.ts';
 import * as mockApi from '../api/mockData.ts';
 import Papa from 'papaparse';
 
-// --- API REAL (usada quando process.env.API_MODE = 'api') ---
+// --- UTILITÁRIOS ---
 
 const handleResponse = async (response: Response) => {
     if (!response.ok) {
@@ -23,151 +24,179 @@ const apiRequest = async (url: string, method: 'POST' | 'PUT' | 'DELETE', body?:
     return handleResponse(response);
 };
 
-// --- Funções de Leitura (GET) ---
+// =============================================================================
+// IMPLEMENTAÇÃO DA API REAL (Produção / Docker)
+// =============================================================================
 
-export const getVeiculos = (): Promise<Veiculo[]> => {
-    if (process.env.API_MODE === 'mock') return mockApi.getMockVeiculos();
-    return fetch(`${process.env.API_URL}/veiculos`).then(handleResponse);
-};
-
-export const getCargas = async (params?: { veiculoCod?: string, data?: string }): Promise<Carga[]> => {
-    if (process.env.API_MODE === 'mock') return mockApi.getMockCargas(params);
-    
-    // Na API real, esta função busca as cargas manuais/importadas para seleção no lançamento.
-    let cargasManuais: Carga[] = await fetch(`${process.env.API_URL}/cargas-manuais`).then(handleResponse);
-    
-    // Aplicar filtros no frontend, pois a API simples não os suporta
-    if (params) {
-        if (params.data) {
-            cargasManuais = cargasManuais.filter(c => c.DataCTE === params.data);
+const RealService = {
+    // GET
+    getVeiculos: (): Promise<Veiculo[]> => {
+        return fetch(`${process.env.API_URL}/veiculos`).then(handleResponse);
+    },
+    getCargas: async (params?: { veiculoCod?: string, data?: string }): Promise<Carga[]> => {
+        // Na API real, buscamos as cargas no endpoint /cargas-manuais (que inclui as importadas do ERP)
+        let cargas: Carga[] = await fetch(`${process.env.API_URL}/cargas-manuais`).then(handleResponse);
+        
+        // Filtragem no Client-Side (pois a API atual retorna tudo)
+        if (params) {
+            if (params.data) {
+                cargas = cargas.filter(c => c.DataCTE === params.data);
+            }
+            if (params.veiculoCod) {
+                cargas = cargas.filter(c => c.COD_VEICULO === params.veiculoCod);
+            }
         }
-        if (params.veiculoCod) {
-            cargasManuais = cargasManuais.filter(c => c.COD_VEICULO === params.veiculoCod);
-        }
-    }
-    return cargasManuais.filter(c => !c.Excluido); // Retornar apenas as ativas
-};
+        return cargas.filter(c => !c.Excluido);
+    },
+    getCargasManuais: (): Promise<Carga[]> => {
+        return fetch(`${process.env.API_URL}/cargas-manuais`).then(handleResponse);
+    },
+    getParametrosValores: (): Promise<ParametroValor[]> => {
+        return fetch(`${process.env.API_URL}/parametros-valores`).then(handleResponse);
+    },
+    getParametrosTaxas: (): Promise<ParametroTaxa[]> => {
+        return fetch(`${process.env.API_URL}/parametros-taxas`).then(handleResponse);
+    },
+    getMotivosSubstituicao: (): Promise<MotivoSubstituicao[]> => {
+        return fetch(`${process.env.API_URL}/motivos-substituicao`).then(handleResponse);
+    },
+    getLancamentos: (): Promise<Lancamento[]> => {
+        return fetch(`${process.env.API_URL}/lancamentos`).then(handleResponse);
+    },
 
-export const getCargasManuais = (): Promise<Carga[]> => {
-    if (process.env.API_MODE === 'mock') return mockApi.getMockCargasManuais();
-    return fetch(`${process.env.API_URL}/cargas-manuais`).then(handleResponse);
-};
+    // POST / PUT / DELETE
+    createLancamento: (lancamento: NewLancamento): Promise<Lancamento> => {
+        return apiRequest(`${process.env.API_URL}/lancamentos`, 'POST', lancamento);
+    },
+    deleteLancamento: (id: number, motivo: string): Promise<void> => {
+        return apiRequest(`${process.env.API_URL}/lancamentos/${id}`, 'PUT', { motivo });
+    },
+    createVeiculo: (veiculo: Omit<Veiculo, 'ID_Veiculo'>): Promise<Veiculo> => {
+        return apiRequest(`${process.env.API_URL}/veiculos`, 'POST', veiculo);
+    },
+    updateVeiculo: (id: number, veiculo: Veiculo): Promise<Veiculo> => {
+        return apiRequest(`${process.env.API_URL}/veiculos/${id}`, 'PUT', veiculo);
+    },
+    createCarga: (carga: Omit<Carga, 'ID_Carga'>): Promise<Carga> => {
+        return apiRequest(`${process.env.API_URL}/cargas-manuais`, 'POST', carga);
+    },
+    updateCarga: (id: number, carga: Carga): Promise<Carga> => {
+        return apiRequest(`${process.env.API_URL}/cargas-manuais/${id}`, 'PUT', carga);
+    },
+    deleteCarga: (id: number, motivo: string): Promise<void> => {
+        const body = { Excluido: true, MotivoExclusao: motivo };
+        return apiRequest(`${process.env.API_URL}/cargas-manuais/${id}`, 'PUT', body);
+    },
+    createParametroValor: (param: Omit<ParametroValor, 'ID_Parametro'>): Promise<ParametroValor> => {
+        return apiRequest(`${process.env.API_URL}/parametros-valores`, 'POST', param);
+    },
+    updateParametroValor: (id: number, param: ParametroValor): Promise<ParametroValor> => {
+        return apiRequest(`${process.env.API_URL}/parametros-valores/${id}`, 'PUT', param);
+    },
+    deleteParametroValor: (id: number): Promise<void> => {
+        return apiRequest(`${process.env.API_URL}/parametros-valores/${id}`, 'DELETE');
+    },
+    createParametroTaxa: (param: Omit<ParametroTaxa, 'ID_Taxa'>): Promise<ParametroTaxa> => {
+        return apiRequest(`${process.env.API_URL}/parametros-taxas`, 'POST', param);
+    },
+    updateParametroTaxa: (id: number, param: ParametroTaxa): Promise<ParametroTaxa> => {
+        return apiRequest(`${process.env.API_URL}/parametros-taxas/${id}`, 'PUT', param);
+    },
+    deleteParametroTaxa: (id: number): Promise<void> => {
+        return apiRequest(`${process.env.API_URL}/parametros-taxas/${id}`, 'DELETE');
+    },
 
-export const getParametrosValores = (): Promise<ParametroValor[]> => {
-    if (process.env.API_MODE === 'mock') return mockApi.getMockParametrosValores();
-    return fetch(`${process.env.API_URL}/parametros-valores`).then(handleResponse);
-};
-
-export const getParametrosTaxas = (): Promise<ParametroTaxa[]> => {
-    if (process.env.API_MODE === 'mock') return mockApi.getMockParametrosTaxas();
-    return fetch(`${process.env.API_URL}/parametros-taxas`).then(handleResponse);
-};
-
-export const getMotivosSubstituicao = (): Promise<MotivoSubstituicao[]> => {
-    if (process.env.API_MODE === 'mock') return mockApi.getMockMotivosSubstituicao();
-    return fetch(`${process.env.API_URL}/motivos-substituicao`).then(handleResponse);
-};
-
-export const getLancamentos = (): Promise<Lancamento[]> => {
-    if (process.env.API_MODE === 'mock') return mockApi.getMockLancamentos();
-    return fetch(`${process.env.API_URL}/lancamentos`).then(handleResponse);
-};
-
-
-// --- Funções de Escrita (POST, PUT, DELETE) ---
-
-export const createLancamento = (lancamento: NewLancamento): Promise<Lancamento> => {
-    if (process.env.API_MODE === 'mock') return mockApi.createMockLancamento(lancamento);
-    return apiRequest(`${process.env.API_URL}/lancamentos`, 'POST', lancamento);
-};
-
-export const deleteLancamento = (id: number, motivo: string): Promise<void> => {
-    if (process.env.API_MODE === 'mock') return mockApi.deleteMockLancamento(id, motivo);
-    return apiRequest(`${process.env.API_URL}/lancamentos/${id}`, 'PUT', { motivo });
-};
-
-export const createVeiculo = (veiculo: Omit<Veiculo, 'ID_Veiculo'>): Promise<Veiculo> => {
-    if (process.env.API_MODE === 'mock') return mockApi.createMockVeiculo(veiculo);
-    return apiRequest(`${process.env.API_URL}/veiculos`, 'POST', veiculo);
-};
-
-export const updateVeiculo = (id: number, veiculo: Veiculo): Promise<Veiculo> => {
-    if (process.env.API_MODE === 'mock') return mockApi.updateMockVeiculo(id, veiculo);
-    return apiRequest(`${process.env.API_URL}/veiculos/${id}`, 'PUT', veiculo);
-};
-
-export const createCarga = (carga: Omit<Carga, 'ID_Carga'>): Promise<Carga> => {
-    if (process.env.API_MODE === 'mock') return mockApi.createMockCarga(carga);
-    return apiRequest(`${process.env.API_URL}/cargas-manuais`, 'POST', carga);
-};
-
-export const updateCarga = (id: number, carga: Carga): Promise<Carga> => {
-    if (process.env.API_MODE === 'mock') return mockApi.updateMockCarga(id, carga);
-    return apiRequest(`${process.env.API_URL}/cargas-manuais/${id}`, 'PUT', carga);
-};
-
-export const deleteCarga = (id: number, motivo: string): Promise<void> => {
-    if (process.env.API_MODE === 'mock') return mockApi.deleteMockCarga(id, motivo);
-    const body = { Excluido: true, MotivoExclusao: motivo };
-    return apiRequest(`${process.env.API_URL}/cargas-manuais/${id}`, 'PUT', body);
-};
-
-export const createParametroValor = (param: Omit<ParametroValor, 'ID_Parametro'>): Promise<ParametroValor> => {
-    if (process.env.API_MODE === 'mock') return mockApi.createMockParametroValor(param);
-    return apiRequest(`${process.env.API_URL}/parametros-valores`, 'POST', param);
-};
-
-export const updateParametroValor = (id: number, param: ParametroValor): Promise<ParametroValor> => {
-    if (process.env.API_MODE === 'mock') return mockApi.updateMockParametroValor(id, param);
-    return apiRequest(`${process.env.API_URL}/parametros-valores/${id}`, 'PUT', param);
-};
-
-export const deleteParametroValor = (id: number): Promise<void> => {
-    if (process.env.API_MODE === 'mock') return mockApi.deleteMockParametroValor(id);
-    return apiRequest(`${process.env.API_URL}/parametros-valores/${id}`, 'DELETE');
-};
-
-export const createParametroTaxa = (param: Omit<ParametroTaxa, 'ID_Taxa'>): Promise<ParametroTaxa> => {
-    if (process.env.API_MODE === 'mock') return mockApi.createMockParametroTaxa(param);
-    return apiRequest(`${process.env.API_URL}/parametros-taxas`, 'POST', param);
-};
-
-export const updateParametroTaxa = (id: number, param: ParametroTaxa): Promise<ParametroTaxa> => {
-    if (process.env.API_MODE === 'mock') return mockApi.updateMockParametroTaxa(id, param);
-    return apiRequest(`${process.env.API_URL}/parametros-taxas/${id}`, 'PUT', param);
-};
-
-export const deleteParametroTaxa = (id: number): Promise<void> => {
-    if (process.env.API_MODE === 'mock') return mockApi.deleteMockParametroTaxa(id);
-    return apiRequest(`${process.env.API_URL}/parametros-taxas/${id}`, 'DELETE');
-};
-
-
-// --- Importação ---
-
-export const importCargasFromERP = async (startDate: string, endDate:string): Promise<{ message: string; count: number }> => {
-    if (process.env.API_MODE === 'mock') return mockApi.importMockCargasFromERP(startDate, endDate);
-    
-    const body = { sIni: startDate, sFim: endDate };
-    return apiRequest(`${process.env.API_URL}/cargas-erp/import`, 'POST', body);
-};
-
-export const importData = async (file: File, type: 'veiculos' | 'cargas' | 'parametros-valores' | 'parametros-taxas'): Promise<{ message: string; count: number }> => {
-    if (process.env.API_MODE === 'api') {
-        alert("A importação via CSV para a API ainda não foi implementada. Use a importação do ERP.");
-    }
-
-    return new Promise((resolve, reject) => {
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: (results: { data: any[] }) => {
-                console.log(`Dados para importar para '${type}':`, results.data);
-                // Aqui você pode chamar as funções de mock para adicionar os dados
-                // Ex: results.data.forEach(item => mockApi.createMockCarga(item));
-                resolve({ message: `Arquivo CSV processado localmente.`, count: results.data.length });
-            },
-            error: (error: any) => reject(new Error('Erro ao ler o arquivo CSV: ' + error.message))
+    // Importação
+    importCargasFromERP: async (startDate: string, endDate:string): Promise<{ message: string; count: number }> => {
+        const body = { sIni: startDate, sFim: endDate };
+        return apiRequest(`${process.env.API_URL}/cargas-erp/import`, 'POST', body);
+    },
+    importData: async (file: File, type: 'veiculos' | 'cargas' | 'parametros-valores' | 'parametros-taxas'): Promise<{ message: string; count: number }> => {
+        return new Promise((_, reject) => {
+            reject(new Error("A importação de CSV ainda não está implementada no backend real. Use o cadastro manual ou importação via ERP."));
         });
-    });
+    }
 };
+
+// =============================================================================
+// IMPLEMENTAÇÃO DA API MOCK (Desenvolvimento Offline)
+// =============================================================================
+
+const MockService = {
+    getVeiculos: mockApi.getMockVeiculos,
+    getCargas: mockApi.getMockCargas,
+    getCargasManuais: mockApi.getMockCargasManuais,
+    getParametrosValores: mockApi.getMockParametrosValores,
+    getParametrosTaxas: mockApi.getMockParametrosTaxas,
+    getMotivosSubstituicao: mockApi.getMockMotivosSubstituicao,
+    getLancamentos: mockApi.getMockLancamentos,
+    
+    createLancamento: mockApi.createMockLancamento,
+    deleteLancamento: mockApi.deleteMockLancamento,
+    
+    createVeiculo: mockApi.createMockVeiculo,
+    updateVeiculo: mockApi.updateMockVeiculo,
+    
+    createCarga: mockApi.createMockCarga,
+    updateCarga: mockApi.updateMockCarga,
+    deleteCarga: mockApi.deleteMockCarga,
+    
+    createParametroValor: mockApi.createMockParametroValor,
+    updateParametroValor: mockApi.updateMockParametroValor,
+    deleteParametroValor: mockApi.deleteMockParametroValor,
+    
+    createParametroTaxa: mockApi.createMockParametroTaxa,
+    updateParametroTaxa: mockApi.updateMockParametroTaxa,
+    deleteParametroTaxa: mockApi.deleteMockParametroTaxa,
+    
+    importCargasFromERP: mockApi.importMockCargasFromERP,
+    
+    importData: async (file: File, type: 'veiculos' | 'cargas' | 'parametros-valores' | 'parametros-taxas'): Promise<{ message: string; count: number }> => {
+        return new Promise((resolve, reject) => {
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results: { data: any[] }) => {
+                    console.log(`MOCK IMPORT ${type}:`, results.data);
+                    // Simulação simples: apenas retorna sucesso
+                    resolve({ message: `(MOCK) Arquivo CSV processado.`, count: results.data.length });
+                },
+                error: (error: any) => reject(new Error('Erro ao ler o arquivo CSV: ' + error.message))
+            });
+        });
+    }
+};
+
+// =============================================================================
+// SELEÇÃO DE IMPLEMENTAÇÃO
+// =============================================================================
+
+// A variável process.env.API_MODE é injetada pelo esbuild durante o build.
+// Se for 'mock', usamos o MockService. Caso contrário, RealService.
+const isMock = process.env.API_MODE === 'mock';
+const SelectedService = isMock ? MockService : RealService;
+
+export const {
+    getVeiculos,
+    getCargas,
+    getCargasManuais,
+    getParametrosValores,
+    getParametrosTaxas,
+    getMotivosSubstituicao,
+    getLancamentos,
+    createLancamento,
+    deleteLancamento,
+    createVeiculo,
+    updateVeiculo,
+    createCarga,
+    updateCarga,
+    deleteCarga,
+    createParametroValor,
+    updateParametroValor,
+    deleteParametroValor,
+    createParametroTaxa,
+    updateParametroTaxa,
+    deleteParametroTaxa,
+    importCargasFromERP,
+    importData
+} = SelectedService;

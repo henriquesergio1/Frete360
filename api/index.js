@@ -432,6 +432,17 @@ app.delete('/parametros-taxas/:id', async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
+// MOTIVOS SUBSTITUIÇÃO (Static data from API)
+app.get('/motivos-substituicao', (req, res) => {
+    const motivos = [
+        { ID_Motivo: 1, Descricao: 'Correção de valor' },
+        { ID_Motivo: 2, Descricao: 'Alteração de rota' },
+        { ID_Motivo: 3, Descricao: 'Lançamento indevido' },
+        { ID_Motivo: 4, Descricao: 'Outro' },
+    ];
+    res.json(motivos);
+});
+
 // Inicia o servidor
 app.listen(port, () => {
   console.log(`Servidor da API rodando em http://localhost:${port}`);

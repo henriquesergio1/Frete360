@@ -64,7 +64,8 @@ export const getParametrosTaxas = (): Promise<ParametroTaxa[]> => {
 };
 
 export const getMotivosSubstituicao = (): Promise<MotivoSubstituicao[]> => {
-    return mockApi.getMockMotivosSubstituicao();
+    if (process.env.API_MODE === 'mock') return mockApi.getMockMotivosSubstituicao();
+    return fetch(`${process.env.API_URL}/motivos-substituicao`).then(handleResponse);
 };
 
 export const getLancamentos = (): Promise<Lancamento[]> => {

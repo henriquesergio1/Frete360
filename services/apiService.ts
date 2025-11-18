@@ -14,12 +14,23 @@ declare global {
     }
 }
 
+// Helper seguro para ler o ambiente injetado pelo esbuild
+const getEnv = () => {
+    try {
+        // @ts-ignore
+        return process.env.NODE_ENV;
+    } catch (e) {
+        // Fallback caso a injeção falhe (apenas localmente)
+        return 'development';
+    }
+};
+
 // Função auxiliar para pegar a configuração atual em TEMPO DE EXECUÇÃO
 const getConfig = () => {
+    const env = getEnv();
+
     // TRAVA DE SEGURANÇA RÍGIDA PARA AMBIENTE DOCKER/PRODUÇÃO
-    // Esta variável é injetada pelo esbuild durante o comando 'npm run build:prod' no Dockerfile.
-    if (process.env.NODE_ENV === 'production') {
-        console.log("[API] Build de Produção detectado. Forçando modo API.");
+    if (env === 'production') {
         return { mode: 'api', apiUrl: '/api' };
     }
 
@@ -32,16 +43,10 @@ const getConfig = () => {
     return { mode: 'api', apiUrl: '/api' };
 };
 
-// Helper para logs
-const logMode = () => {
-    const { mode, apiUrl } = getConfig();
-};
-
 // --- UTILITÁRIOS ---
 
 const handleResponse = async (response: Response) => {
     if (!response.ok) {
-        // Tenta extrair mensagem de erro do corpo, senão usa o status text
         let errorMessage = response.statusText;
         try {
             const errorData = await response.json();
@@ -71,7 +76,7 @@ const apiRequest = async (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', b
         return handleResponse(response);
     } catch (error: any) {
         console.error(`[API ERROR] Falha ao conectar em ${url}:`, error);
-        throw error; // Repassa o erro para a UI exibir a mensagem vermelha, SEM fallback para mock.
+        throw error; 
     }
 };
 
@@ -86,7 +91,7 @@ const apiGet = async (endpoint: string) => {
         return handleResponse(response);
     } catch (error: any) {
         console.error(`[API ERROR] Falha ao buscar dados de ${url}:`, error);
-        throw error; // Repassa o erro para a UI exibir a mensagem vermelha, SEM fallback para mock.
+        throw error;
     }
 };
 
@@ -194,15 +199,26 @@ const MockService = {
 // Esta função decide qual serviço usar NO MOMENTO DA CHAMADA
 const getService = () => {
     const config = getConfig();
+    const env = getEnv();
     
     // Log simples na primeira chamada para debug
     if (!(window as any).hasLoggedApiMode) {
-        console.log(`[API Service] Inicializado. Ambiente NODE_ENV: ${process.env.NODE_ENV}. Modo Ativo: ${config.mode?.toUpperCase()}`);
+        console.log(`[API Service] Inicializado. Ambiente: ${env}. Modo Ativo: ${config.mode?.toUpperCase()}`);
         (window as any).hasLoggedApiMode = true;
     }
 
-    // IMPORTANTE: Se estivermos em produção (Docker), o getConfig() já forçou 'api'.
-    // O único jeito de cair no MockService agora é se NÃO for produção E o config for explicitamente 'mock'.
+    // SEGURANÇA ABSOLUTA:
+    // Se o ambiente for de produção, PROÍBE o uso do MockService.
+    // Se a conexão falhar, o usuário verá um erro vermelho na tela, mas NUNCA dados falsos.
+    if (env === 'production') {
+        if (config.mode === 'mock') {
+            const errorMsg = "CRITICAL ERROR: Tentativa de usar dados Mock em Produção bloqueada.";
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+        return RealService;
+    }
+
     return config.mode === 'mock' ? MockService : RealService;
 };
 

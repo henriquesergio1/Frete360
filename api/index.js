@@ -61,7 +61,8 @@ function executeQuery(config, query, params = []) {
         resolve({ rows: result, rowCount });
       });
 
-      params.forEach(param => { request.addParameter(param.name, param.type, param.value); });
+      // CORREÇÃO: Passar 'param.options' para suportar { scale: 2 } em decimais
+      params.forEach(param => { request.addParameter(param.name, param.type, param.value, param.options); });
       connection.execSql(request);
     });
     connection.connect();
@@ -136,7 +137,7 @@ app.post('/cargas-manuais', async (req, res) => {
                    VALUES (@num, @cidade, @valor, @data, @km, @cod, @origem);`;
     const params = [
         { name: 'num', type: TYPES.NVarChar, value: String(c.NumeroCarga) }, { name: 'cidade', type: TYPES.NVarChar, value: c.Cidade },
-        { name: 'valor', type: TYPES.Decimal, value: c.ValorCTE }, { name: 'data', type: TYPES.Date, value: c.DataCTE },
+        { name: 'valor', type: TYPES.Decimal, value: c.ValorCTE, options: { scale: 2 } }, { name: 'data', type: TYPES.Date, value: c.DataCTE },
         { name: 'km', type: TYPES.Int, value: c.KM }, { name: 'cod', type: TYPES.NVarChar, value: c.COD_VEICULO },
         { name: 'origem', type: TYPES.NVarChar, value: c.Origem || 'Manual' },
     ];
@@ -160,7 +161,7 @@ app.put('/cargas-manuais/:id', async (req, res) => {
         query = `UPDATE CargasManuais SET NumeroCarga = @num, Cidade = @cidade, ValorCTE = @valor, DataCTE = @data, KM = @km, COD_VEICULO = @cod OUTPUT INSERTED.* WHERE ID_Carga = @id;`;
         params = [
             { name: 'id', type: TYPES.Int, value: id }, { name: 'num', type: TYPES.NVarChar, value: String(c.NumeroCarga) },
-            { name: 'cidade', type: TYPES.NVarChar, value: c.Cidade }, { name: 'valor', type: TYPES.Decimal, value: c.ValorCTE },
+            { name: 'cidade', type: TYPES.NVarChar, value: c.Cidade }, { name: 'valor', type: TYPES.Decimal, value: c.ValorCTE, options: { scale: 2 } },
             { name: 'data', type: TYPES.Date, value: c.DataCTE }, { name: 'km', type: TYPES.Int, value: c.KM },
             { name: 'cod', type: TYPES.NVarChar, value: c.COD_VEICULO },
         ];
@@ -283,7 +284,7 @@ app.post('/cargas-erp/import', async (req, res) => {
                             params.push(
                                 { name: `num${index}`, type: TYPES.NVarChar, value: String(c.NumeroCarga) },
                                 { name: `cidade${index}`, type: TYPES.NVarChar, value: c.Cidade },
-                                { name: `valor${index}`, type: TYPES.Decimal, value: c.ValorCTE },
+                                { name: `valor${index}`, type: TYPES.Decimal, value: c.ValorCTE, options: { scale: 2 } },
                                 { name: `data${index}`, type: TYPES.Date, value: c.DataCTE },
                                 { name: `km${index}`, type: TYPES.Int, value: c.KM },
                                 { name: `cod${index}`, type: TYPES.NVarChar, value: c.COD_VEICULO }
@@ -298,7 +299,8 @@ app.post('/cargas-erp/import', async (req, res) => {
                                 if (err) return reject(err);
                                 resolve();
                             });
-                            params.forEach(p => request.addParameter(p.name, p.type, p.value));
+                            // CORREÇÃO: Passar p.options para garantir escala correta no batch insert
+                            params.forEach(p => request.addParameter(p.name, p.type, p.value, p.options));
                             connection.execSql(request);
                         });
                     }
@@ -410,17 +412,17 @@ app.post('/lancamentos', (req, res) => {
                     });
                     requestCarga.addParameter('idl', TYPES.Int, newLancamentoId); requestCarga.addParameter('idc', TYPES.Int, c.ID_Carga);
                     requestCarga.addParameter('num', TYPES.NVarChar, String(c.NumeroCarga)); requestCarga.addParameter('cidade', TYPES.NVarChar, c.Cidade);
-                    requestCarga.addParameter('valor', TYPES.Decimal, c.ValorCTE); requestCarga.addParameter('data', TYPES.Date, c.DataCTE);
+                    requestCarga.addParameter('valor', TYPES.Decimal, c.ValorCTE, { scale: 2 }); requestCarga.addParameter('data', TYPES.Date, c.DataCTE);
                     requestCarga.addParameter('km', TYPES.Int, c.KM); requestCarga.addParameter('cod', TYPES.NVarChar, c.COD_VEICULO);
                     connection.execSql(requestCarga);
                 });
             });
             requestLancamento.addParameter('data', TYPES.Date, l.DataFrete); requestLancamento.addParameter('idv', TYPES.Int, l.ID_Veiculo);
             requestLancamento.addParameter('cidade', TYPES.NVarChar, calc.CidadeBase); requestLancamento.addParameter('km', TYPES.Int, calc.KMBase);
-            requestLancamento.addParameter('vb', TYPES.Decimal, calc.ValorBase); requestLancamento.addParameter('ped', TYPES.Decimal, calc.Pedagio);
-            requestLancamento.addParameter('balsa', TYPES.Decimal, calc.Balsa); requestLancamento.addParameter('amb', TYPES.Decimal, calc.Ambiental);
-            requestLancamento.addParameter('chapa', TYPES.Decimal, calc.Chapa); requestLancamento.addParameter('outras', TYPES.Decimal, calc.Outras);
-            requestLancamento.addParameter('vt', TYPES.Decimal, calc.ValorTotal); requestLancamento.addParameter('user', TYPES.NVarChar, l.Usuario);
+            requestLancamento.addParameter('vb', TYPES.Decimal, calc.ValorBase, { scale: 2 }); requestLancamento.addParameter('ped', TYPES.Decimal, calc.Pedagio, { scale: 2 });
+            requestLancamento.addParameter('balsa', TYPES.Decimal, calc.Balsa, { scale: 2 }); requestLancamento.addParameter('amb', TYPES.Decimal, calc.Ambiental, { scale: 2 });
+            requestLancamento.addParameter('chapa', TYPES.Decimal, calc.Chapa, { scale: 2 }); requestLancamento.addParameter('outras', TYPES.Decimal, calc.Outras, { scale: 2 });
+            requestLancamento.addParameter('vt', TYPES.Decimal, calc.ValorTotal, { scale: 2 }); requestLancamento.addParameter('user', TYPES.NVarChar, l.Usuario);
             requestLancamento.addParameter('motivo', TYPES.NVarChar, l.Motivo);
             connection.execSql(requestLancamento);
         });
@@ -451,7 +453,7 @@ app.post('/parametros-valores', async (req, res) => {
     const query = `INSERT INTO ParametrosValores (Cidade, TipoVeiculo, ValorBase, KM) OUTPUT INSERTED.* VALUES (@cidade, @tipo, @valor, @km);`;
     const params = [
         { name: 'cidade', type: TYPES.NVarChar, value: p.Cidade }, { name: 'tipo', type: TYPES.NVarChar, value: p.TipoVeiculo },
-        { name: 'valor', type: TYPES.Decimal, value: p.ValorBase }, { name: 'km', type: TYPES.Int, value: p.KM }
+        { name: 'valor', type: TYPES.Decimal, value: p.ValorBase, options: { scale: 2 } }, { name: 'km', type: TYPES.Int, value: p.KM }
     ];
     try {
         const { rows } = await executeQuery(configOdin, query, params);
@@ -463,7 +465,7 @@ app.put('/parametros-valores/:id', async (req, res) => {
     const query = `UPDATE ParametrosValores SET Cidade=@cidade, TipoVeiculo=@tipo, ValorBase=@valor, KM=@km OUTPUT INSERTED.* WHERE ID_Parametro=@id;`;
     const params = [
         { name: 'id', type: TYPES.Int, value: req.params.id }, { name: 'cidade', type: TYPES.NVarChar, value: p.Cidade },
-        { name: 'tipo', type: TYPES.NVarChar, value: p.TipoVeiculo }, { name: 'valor', type: TYPES.Decimal, value: p.ValorBase },
+        { name: 'tipo', type: TYPES.NVarChar, value: p.TipoVeiculo }, { name: 'valor', type: TYPES.Decimal, value: p.ValorBase, options: { scale: 2 } },
         { name: 'km', type: TYPES.Int, value: p.KM }
     ];
     try {
@@ -491,9 +493,9 @@ app.post('/parametros-taxas', async (req, res) => {
     const p = req.body;
     const query = `INSERT INTO ParametrosTaxas (Cidade, Pedagio, Balsa, Ambiental, Chapa, Outras) OUTPUT INSERTED.* VALUES (@cidade, @ped, @balsa, @amb, @chapa, @outras);`;
     const params = [
-        { name: 'cidade', type: TYPES.NVarChar, value: p.Cidade }, { name: 'ped', type: TYPES.Decimal, value: p.Pedagio },
-        { name: 'balsa', type: TYPES.Decimal, value: p.Balsa }, { name: 'amb', type: TYPES.Decimal, value: p.Ambiental },
-        { name: 'chapa', type: TYPES.Decimal, value: p.Chapa }, { name: 'outras', type: TYPES.Decimal, value: p.Outras }
+        { name: 'cidade', type: TYPES.NVarChar, value: p.Cidade }, { name: 'ped', type: TYPES.Decimal, value: p.Pedagio, options: { scale: 2 } },
+        { name: 'balsa', type: TYPES.Decimal, value: p.Balsa, options: { scale: 2 } }, { name: 'amb', type: TYPES.Decimal, value: p.Ambiental, options: { scale: 2 } },
+        { name: 'chapa', type: TYPES.Decimal, value: p.Chapa, options: { scale: 2 } }, { name: 'outras', type: TYPES.Decimal, value: p.Outras, options: { scale: 2 } }
     ];
     try {
         const { rows } = await executeQuery(configOdin, query, params);
@@ -505,9 +507,9 @@ app.put('/parametros-taxas/:id', async (req, res) => {
     const query = `UPDATE ParametrosTaxas SET Cidade=@cidade, Pedagio=@ped, Balsa=@balsa, Ambiental=@amb, Chapa=@chapa, Outras=@outras OUTPUT INSERTED.* WHERE ID_Taxa=@id;`;
     const params = [
         { name: 'id', type: TYPES.Int, value: req.params.id }, { name: 'cidade', type: TYPES.NVarChar, value: p.Cidade },
-        { name: 'ped', type: TYPES.Decimal, value: p.Pedagio }, { name: 'balsa', type: TYPES.Decimal, value: p.Balsa },
-        { name: 'amb', type: TYPES.Decimal, value: p.Ambiental }, { name: 'chapa', type: TYPES.Decimal, value: p.Chapa },
-        { name: 'outras', type: TYPES.Decimal, value: p.Outras }
+        { name: 'ped', type: TYPES.Decimal, value: p.Pedagio, options: { scale: 2 } }, { name: 'balsa', type: TYPES.Decimal, value: p.Balsa, options: { scale: 2 } },
+        { name: 'amb', type: TYPES.Decimal, value: p.Ambiental, options: { scale: 2 } }, { name: 'chapa', type: TYPES.Decimal, value: p.Chapa, options: { scale: 2 } },
+        { name: 'outras', type: TYPES.Decimal, value: p.Outras, options: { scale: 2 } }
     ];
     try {
         const { rows } = await executeQuery(configOdin, query, params);

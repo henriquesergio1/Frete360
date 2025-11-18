@@ -6,17 +6,17 @@ import Papa from 'papaparse';
 // CONFIGURAÇÃO DE MODO (DEFINITIVA)
 // =============================================================================
 
-// A variável process.env.IS_MOCK é substituída por uma string ('true' ou 'false')
-// durante o build pelo esbuild (veja package.json).
-// Se por algum motivo não for substituída (ex: IDE), assume false (Produção) por segurança.
-const IS_MOCK_ENV = process.env.IS_MOCK;
-const USE_MOCK = IS_MOCK_ENV === 'true';
+// Declaração para o TypeScript entender a constante injetada pelo esbuild
+declare const __USE_MOCK__: boolean;
+
+// A constante __USE_MOCK__ é substituída literalmente por true ou false durante o build.
+// Não há verificação de ambiente em tempo de execução, é hardcoded no JS final.
+const USE_MOCK = typeof __USE_MOCK__ !== 'undefined' ? __USE_MOCK__ : true; // Fallback seguro para IDE
 
 const API_BASE_URL = '/api';
 
 console.log(`[API SERVICE] Inicializado.`);
-console.log(`[API SERVICE] Configuração de Build (IS_MOCK): ${IS_MOCK_ENV}`);
-console.log(`[API SERVICE] Modo Ativo Final: ${USE_MOCK ? 'MOCK (Dados Falsos)' : 'API REAL (Backend)'}`);
+console.log(`[API SERVICE] Modo Ativo: ${USE_MOCK ? 'MOCK (Dados Falsos)' : 'API REAL (Backend)'}`);
 
 // =============================================================================
 // UTILITÁRIOS API REAL

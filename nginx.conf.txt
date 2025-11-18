@@ -9,10 +9,10 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # Desativa cache para o index.html para evitar configurações antigas
-    location = /index.html {
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
-        expires 0;
+    # Desativa cache para o index.html e arquivos estáticos principais
+    location ~* \.(html|js|css)$ {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+        expires off;
     }
 
     # Configuração do Proxy Reverso para a API

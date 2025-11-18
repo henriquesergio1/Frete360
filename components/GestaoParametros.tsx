@@ -1,7 +1,8 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { DataContext } from '../context/DataContext.tsx';
 import { ParametroValor, ParametroTaxa } from '../types.ts';
-import { PlusCircleIcon, PencilIcon, XCircleIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon } from './icons.tsx';
+import { PlusCircleIcon, PencilIcon, XCircleIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon, CogIcon } from './icons.tsx';
+import { getCurrentMode, toggleMode } from '../services/apiService.ts';
 
 // --- Reusable Card Component ---
 const ParametroCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -458,6 +459,56 @@ const GestaoParametrosTaxas: React.FC = () => {
 };
 
 
+// --- System Control Panel ---
+const SystemControl: React.FC = () => {
+    const currentMode = getCurrentMode();
+    const isMock = currentMode === 'MOCK';
+
+    return (
+        <div className="bg-slate-800 p-6 rounded-lg shadow-lg border border-slate-700 mt-8">
+            <div className="flex items-center mb-4">
+                <CogIcon className="w-8 h-8 text-slate-400 mr-4" />
+                <div>
+                    <h3 className="text-lg font-semibold text-white">Sistema & Depuração</h3>
+                    <p className="text-sm text-slate-400">Controle o modo de operação da aplicação (Desenvolvimento vs Produção).</p>
+                </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between bg-slate-900/50 p-4 rounded-md border border-slate-700">
+                <div className="mb-4 sm:mb-0">
+                    <p className="text-sm text-slate-300">Modo Atual:</p>
+                    <p className={`text-xl font-bold ${isMock ? 'text-yellow-400' : 'text-green-400'}`}>
+                        {isMock ? 'MOCK (Dados Falsos)' : 'API REAL (Produção)'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                        {isMock 
+                            ? 'O sistema está usando dados locais simulados. Nenhuma alteração será salva no banco real.' 
+                            : 'O sistema está conectado ao servidor. Todas as alterações são permanentes.'}
+                    </p>
+                </div>
+
+                <div className="flex gap-4">
+                    <button 
+                        onClick={() => toggleMode('API')}
+                        disabled={!isMock}
+                        className={`px-4 py-2 rounded-md font-bold text-sm transition-colors ${!isMock ? 'bg-green-900/30 text-green-600 cursor-default border border-green-900/50' : 'bg-green-600 hover:bg-green-500 text-white'}`}
+                    >
+                        Usar API Real
+                    </button>
+                    <button 
+                         onClick={() => toggleMode('MOCK')}
+                         disabled={isMock}
+                         className={`px-4 py-2 rounded-md font-bold text-sm transition-colors ${isMock ? 'bg-yellow-900/30 text-yellow-600 cursor-default border border-yellow-900/50' : 'bg-yellow-600 hover:bg-yellow-500 text-white'}`}
+                    >
+                        Usar Dados Mock
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 // --- Main Component for Parameter Management ---
 export const GestaoParametros: React.FC = () => {
     return (
@@ -470,6 +521,7 @@ export const GestaoParametros: React.FC = () => {
                 <GestaoParametrosValores />
                 <GestaoParametrosTaxas />
             </div>
+            <SystemControl />
         </div>
     );
 };

@@ -3,20 +3,48 @@ import * as mockApi from '../api/mockData.ts';
 import Papa from 'papaparse';
 
 // =============================================================================
-// CONFIGURAÇÃO DE MODO (DEFINITIVA)
+// CONFIGURAÇÃO DE MODO (DEFINITIVA COM CONTROLE MANUAL)
 // =============================================================================
 
-// Declaração para o TypeScript entender a constante injetada pelo esbuild
+// 1. Declaração para o TypeScript entender a constante injetada pelo esbuild
 declare const __USE_MOCK__: boolean;
 
-// A constante __USE_MOCK__ é substituída literalmente por true ou false durante o build.
-// Não há verificação de ambiente em tempo de execução, é hardcoded no JS final.
-const USE_MOCK = typeof __USE_MOCK__ !== 'undefined' ? __USE_MOCK__ : true; // Fallback seguro para IDE
+// 2. Função para ler preferência do LocalStorage (Prioridade Máxima)
+// Isso permite que você force o modo API mesmo se o build disser o contrário.
+const getStoredMode = (): boolean | null => {
+    try {
+        const stored = localStorage.getItem('APP_MODE');
+        if (stored === 'MOCK') return true;
+        if (stored === 'API') return false;
+    } catch (e) {
+        console.warn('[API SETUP] LocalStorage inacessível:', e);
+    }
+    return null;
+};
+
+// 3. Configuração de Build (Prioridade Secundária)
+// Se __USE_MOCK__ não estiver definido (ex: erro de compilador), assumimos FALSE (API Real) para segurança em produção.
+const BUILD_MODE_MOCK = typeof __USE_MOCK__ !== 'undefined' ? __USE_MOCK__ : false;
+
+// 4. Determinação Final
+// Se o usuário escolheu manualmente (via UI), usa a escolha. Se não, usa a config de build.
+const USE_MOCK = getStoredMode() ?? BUILD_MODE_MOCK;
 
 const API_BASE_URL = '/api';
 
-console.log(`[API SERVICE] Inicializado.`);
-console.log(`[API SERVICE] Modo Ativo: ${USE_MOCK ? 'MOCK (Dados Falsos)' : 'API REAL (Backend)'}`);
+console.log(`[API SERVICE] Inicializando...`);
+console.log(`[API SERVICE] Build Config (__USE_MOCK__): ${typeof __USE_MOCK__ !== 'undefined' ? __USE_MOCK__ : 'UNDEFINED (Fallback to False)'}`);
+console.log(`[API SERVICE] LocalStorage Config: ${getStoredMode() === null ? 'Nenhuma (Usando Build)' : (getStoredMode() ? 'Forçar MOCK' : 'Forçar API')}`);
+console.log(`[API SERVICE] MODO FINAL ATIVO: ${USE_MOCK ? 'MOCK (Dados Falsos)' : 'API REAL (Backend)'}`);
+
+// 5. Exportações para controle manual via UI
+export const toggleMode = (mode: 'MOCK' | 'API') => {
+    console.log(`[API SERVICE] Trocando modo para ${mode} e recarregando...`);
+    localStorage.setItem('APP_MODE', mode);
+    window.location.reload();
+};
+
+export const getCurrentMode = () => USE_MOCK ? 'MOCK' : 'API';
 
 // =============================================================================
 // UTILITÁRIOS API REAL
@@ -171,6 +199,7 @@ const MockService = {
 // EXPORTAÇÕES
 // =============================================================================
 
+// A constante USE_MOCK já foi definida no topo do arquivo com base no storage + build
 export const getVeiculos = USE_MOCK ? MockService.getVeiculos : RealService.getVeiculos;
 export const getCargas = USE_MOCK ? MockService.getCargas : RealService.getCargas;
 export const getCargasManuais = USE_MOCK ? MockService.getCargasManuais : RealService.getCargasManuais;

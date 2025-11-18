@@ -19,11 +19,12 @@ const getConfig = () => {
     if (typeof window !== 'undefined' && window.APP_CONFIG) {
         return window.APP_CONFIG;
     }
-    // Fallback seguro
+    // Fallback seguro apenas se window.APP_CONFIG não existir
+    console.warn("[API] Configuração não encontrada, usando fallback MOCK.");
     return { mode: 'mock', apiUrl: 'http://localhost:3030' };
 };
 
-// Helper para logs
+// Helper para logs (opcional, pode ser removido em prod final)
 const logMode = () => {
     const { mode, apiUrl } = getConfig();
     // console.log(`[API] Executando em modo: ${mode.toUpperCase()} (${apiUrl})`);
@@ -42,7 +43,10 @@ const handleResponse = async (response: Response) => {
 
 const apiRequest = async (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', body?: any) => {
     const { apiUrl } = getConfig();
-    const url = `${apiUrl}${endpoint}`;
+    // Remove barra final da apiUrl e barra inicial do endpoint para evitar //
+    const cleanUrl = apiUrl.replace(/\/$/, '');
+    const cleanEndpoint = endpoint.replace(/^\//, '');
+    const url = `${cleanUrl}/${cleanEndpoint}`;
     
     const options: RequestInit = {
         method,
@@ -55,7 +59,12 @@ const apiRequest = async (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', b
 
 const apiGet = async (endpoint: string) => {
     const { apiUrl } = getConfig();
-    const response = await fetch(`${apiUrl}${endpoint}`);
+    // Remove barra final da apiUrl e barra inicial do endpoint para evitar //
+    const cleanUrl = apiUrl.replace(/\/$/, '');
+    const cleanEndpoint = endpoint.replace(/^\//, '');
+    const url = `${cleanUrl}/${cleanEndpoint}`;
+
+    const response = await fetch(url);
     return handleResponse(response);
 };
 
@@ -163,6 +172,11 @@ const MockService = {
 // Esta função decide qual serviço usar NO MOMENTO DA CHAMADA
 const getService = () => {
     const config = getConfig();
+    // Log simples na primeira chamada para debug
+    if (!(window as any).hasLoggedApiMode) {
+        console.log(`[API Service] Inicializado em modo: ${config.mode}, URL: ${config.apiUrl}`);
+        (window as any).hasLoggedApiMode = true;
+    }
     return config.mode === 'mock' ? MockService : RealService;
 };
 

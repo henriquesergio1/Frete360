@@ -65,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
     );
 };
 
-const AppContent: React.FC = () => {
+const AppUI: React.FC = () => {
     const { loading, error } = useContext(DataContext);
     const [activeView, setActiveView] = useState<View>('dashboard');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -130,7 +130,7 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
     return (
         <DataProvider>
-            <AppContent />
+            <AppUI />
         </DataProvider>
     );
 }

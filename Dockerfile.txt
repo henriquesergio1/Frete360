@@ -1,30 +1,44 @@
 # Estágio 1: Build
-# Usa uma imagem Node.js para instalar o esbuild e compilar o código.
+# Usa uma imagem Node.js para instalar as ferramentas de build e compilar o código.
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Instala o esbuild, um bundler extremamente rápido.
-RUN npm install esbuild
+# Instala as dependências de build: esbuild para JS, tailwindcss para CSS, e papaparse para o código.
+RUN npm install esbuild tailwindcss papaparse
 
-# Copia todo o código-fonte da aplicação para o container.
+# Copia o arquivo de configuração do Tailwind.
+COPY tailwind.config.js .
+
+# Copia todo o código-fonte.
 COPY . .
 
+# Cria o diretório de saída.
+RUN mkdir -p dist
+
+# Executa o Tailwind CSS para escanear os arquivos e gerar o CSS otimizado.
+RUN ./node_modules/.bin/tailwindcss -o ./dist/styles.css --minify
+
 # Executa o esbuild para compilar o index.tsx e todas as suas dependências
-# em um único arquivo JavaScript, que será colocado em /dist/bundle.js.
+# (incluindo React e PapaParse) em um único arquivo JavaScript.
 RUN ./node_modules/.bin/esbuild index.tsx --bundle --outfile=dist/bundle.js --minify --loader:.tsx=tsx
 
 # Estágio 2: Produção
 # Usa uma imagem Nginx leve para servir os arquivos estáticos.
-FROM nginx:alpine AS production
+FROM nginx:alpine
 
-# Copia o arquivo de configuração personalizado do Nginx.
+# Copia a configuração do Nginx que corrige o erro de MIME type.
 COPY nginx.conf.txt /etc/nginx/conf.d/default.conf
 
-# Copia APENAS os arquivos necessários do estágio de build para o diretório web do Nginx.
-# Isso resulta em uma imagem final muito menor e mais segura.
-COPY --from=builder /app/dist/bundle.js /usr/share/nginx/html/dist/bundle.js
-COPY index.html /usr/share/nginx/html/index.html
+# Define o diretório web do Nginx.
+WORKDIR /usr/share/nginx/html
+
+# Limpa o conteúdo padrão do Nginx.
+RUN rm -rf ./*
+
+# Copia os artefatos compilados (HTML, CSS, JS) do estágio de build.
+COPY --from=builder /app/dist/ ./dist
+COPY --from=builder /app/index.html .
 
 # Expõe a porta 80.
 EXPOSE 80

@@ -1,9 +1,7 @@
+import Papa from 'papaparse';
 import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento } from '../types';
 import { API_MODE, API_URL } from '../api.config';
 import * as mockApi from '../api/mockData';
-
-// Declare PapaParse which is loaded from a CDN in index.html
-declare const Papa: any;
 
 // --- API REAL (usada quando API_MODE = 'api') ---
 

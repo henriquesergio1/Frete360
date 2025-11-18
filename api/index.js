@@ -179,9 +179,13 @@ app.post('/cargas-erp/import', async (req, res) => {
 
     try {
         // 1. Buscar dados brutos do ERP
+        // Adicionado LTRIM(RTRIM(...)) para garantir que códigos venham limpos
         const erpQuery = `
-            SELECT PDD.NUMSEQETGPDD AS NumeroCarga, PDD.CODVEC AS COD_VEICULO, LVR.DATEMSNF_LVRSVC AS DataCTE,
-                   LVR.VALSVCTOTLVRSVC AS ValorCTE, RTRIM(ISNULL(CDD.DESCDD, 'N/A')) AS Cidade
+            SELECT PDD.NUMSEQETGPDD AS NumeroCarga, 
+                   RTRIM(LTRIM(PDD.CODVEC)) AS COD_VEICULO, 
+                   LVR.DATEMSNF_LVRSVC AS DataCTE,
+                   LVR.VALSVCTOTLVRSVC AS ValorCTE, 
+                   RTRIM(ISNULL(CDD.DESCDD, 'N/A')) AS Cidade
             FROM Flexx10071188.dbo.IRFTLVRSVC LVR WITH(NOLOCK)
             LEFT JOIN Flexx10071188.dbo.IBETPDDSVCNF_ PDD WITH(NOLOCK) ON PDD.CODEMP = LVR.CODEMP AND PDD.NUMDOCTPTPDD = LVR.NUMNF_LVRSVC AND PDD.INDSERDOCTPTPDD = LVR.CODSERNF_LVRSVC
             LEFT JOIN Flexx10071188.dbo.IBETCET CET WITH(NOLOCK) ON LVR.CODEMP = CET.CODEMP AND LVR.CODCET = CET.CODCET
@@ -194,9 +198,13 @@ app.post('/cargas-erp/import', async (req, res) => {
 
         if (erpRows.length === 0) return res.json({ message: 'Nenhuma carga nova encontrada no ERP para o período.', count: 0 });
 
+        // Agregação de Cargas (caso haja duplicatas no retorno do ERP)
         const aggregated = new Map();
         erpRows.forEach(row => {
             const key = `${row.NumeroCarga}|${row.Cidade}`;
+            // Normalização do código do veículo (Uppercase + Trim)
+            if(row.COD_VEICULO) row.COD_VEICULO = row.COD_VEICULO.toString().trim().toUpperCase();
+            
             if (aggregated.has(key)) {
                 aggregated.get(key).ValorCTE += row.ValorCTE;
             } else {
@@ -204,23 +212,49 @@ app.post('/cargas-erp/import', async (req, res) => {
             }
         });
         
+        // Verifica quais cargas já existem no sistema (Odín)
         const { rows: existingCargas } = await executeQuery(configOdin, "SELECT NumeroCarga, Cidade FROM CargasManuais WHERE Origem = 'ERP'");
         const existingKeys = new Set(existingCargas.map(c => `${c.NumeroCarga}|${c.Cidade}`));
         const novasCargas = Array.from(aggregated.values()).filter(c => !existingKeys.has(`${c.NumeroCarga}|${c.Cidade}`));
 
         if (novasCargas.length === 0) return res.json({ message: 'Todas as cargas encontradas no ERP já existem no sistema.', count: 0 });
 
+        // Busca Veículos Cadastrados no Sistema Local
         const { rows: veiculos } = await executeQuery(configOdin, 'SELECT COD_Veiculo, TipoVeiculo FROM Veiculos');
-        const veiculoMap = new Map(veiculos.map(v => [v.COD_Veiculo, v.TipoVeiculo]));
+        // Cria mapa com chaves normalizadas (Uppercase + Trim)
+        const veiculoMap = new Map(veiculos.map(v => [v.COD_Veiculo.trim().toUpperCase(), v.TipoVeiculo]));
+        
         const { rows: paramsValores } = await executeQuery(configOdin, 'SELECT Cidade, TipoVeiculo, KM FROM ParametrosValores');
 
+        // Filtra apenas cargas cujos veículos existem no sistema
+        const missingVehicles = new Set();
         const cargasParaInserir = novasCargas.map(carga => {
-            const tipoVeiculo = veiculoMap.get(carga.COD_VEICULO);
-            const param = paramsValores.find(p => p.Cidade === carga.Cidade && p.TipoVeiculo === tipoVeiculo) || paramsValores.find(p => p.Cidade === 'Qualquer' && p.TipoVeiculo === tipoVeiculo);
-            return { ...carga, KM: param ? param.KM : 0 };
-        }).filter(c => c.COD_VEICULO && veiculoMap.has(c.COD_VEICULO)); // Filtra cargas sem veículo correspondente
+            if (!carga.COD_VEICULO) return null;
 
-        if (cargasParaInserir.length === 0) return res.json({ message: 'Cargas encontradas, mas os veículos não estão cadastrados no sistema.', count: 0 });
+            const veiculoCodeNormalized = carga.COD_VEICULO; // Já normalizado acima
+            
+            if (!veiculoMap.has(veiculoCodeNormalized)) {
+                missingVehicles.add(veiculoCodeNormalized);
+                return null;
+            }
+
+            const tipoVeiculo = veiculoMap.get(veiculoCodeNormalized);
+            // Busca KM nos parâmetros
+            const param = paramsValores.find(p => p.Cidade === carga.Cidade && p.TipoVeiculo === tipoVeiculo) || 
+                          paramsValores.find(p => p.Cidade === 'Qualquer' && p.TipoVeiculo === tipoVeiculo);
+            
+            return { ...carga, KM: param ? param.KM : 0 };
+        }).filter(c => c !== null);
+
+        if (cargasParaInserir.length === 0) {
+             // Feedback detalhado para o usuário
+             const missingList = Array.from(missingVehicles).slice(0, 5).join(', ');
+             const more = missingVehicles.size > 5 ? '...' : '';
+             return res.json({ 
+                 message: `Cargas encontradas, mas os veículos não estão cadastrados. Veículos faltantes: ${missingList}${more}. Verifique o código exato no cadastro.`, 
+                 count: 0 
+             });
+        }
 
         const connection = new Connection(configOdin);
         connection.connect(err => {
@@ -248,7 +282,10 @@ app.post('/cargas-erp/import', async (req, res) => {
                 });
             });
         });
-    } catch (error) { res.status(500).json({ message: error.message }); }
+    } catch (error) { 
+        console.error("Erro na importação ERP:", error);
+        res.status(500).json({ message: error.message }); 
+    }
 });
 
 // LANÇAMENTOS

@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { DataContext } from '../context/DataContext.tsx';
 import { ParametroValor, ParametroTaxa } from '../types.ts';
-import { PlusCircleIcon, PencilIcon, XCircleIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon, CogIcon } from './icons.tsx';
+import { PlusCircleIcon, PencilIcon, XCircleIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon, CogIcon, CheckCircleIcon } from './icons.tsx';
 import { getCurrentMode, toggleMode } from '../services/apiService.ts';
 
 // --- Reusable Card Component ---
@@ -21,9 +21,11 @@ const ValorModal: React.FC<{
 }> = ({ isOpen, onClose, onSave, parametro }) => {
     const { tiposVeiculo, cidades } = useContext(DataContext);
     const [formData, setFormData] = useState<ParametroValor | null>(null);
+    const [isManualCity, setIsManualCity] = useState(false);
 
     useEffect(() => {
         setFormData(parametro);
+        setIsManualCity(false);
     }, [parametro]);
 
     if (!isOpen || !formData) return null;
@@ -31,6 +33,11 @@ const ValorModal: React.FC<{
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
+    };
+
+    const toggleManualCity = () => {
+        setIsManualCity(!isManualCity);
+        setFormData({ ...formData, Cidade: '' });
     };
 
     const handleSaveClick = () => {
@@ -52,32 +59,62 @@ const ValorModal: React.FC<{
                 <div className="space-y-4">
                      <div>
                         <label className="block text-sm font-medium text-slate-300 mb-1">Cidade</label>
-                         <select name="Cidade" value={formData.Cidade} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2">
-                            <option value="">Selecione...</option>
-                            {cidades.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                        <div className="flex gap-2">
+                            {isManualCity ? (
+                                <input 
+                                    type="text" 
+                                    name="Cidade" 
+                                    value={formData.Cidade} 
+                                    onChange={handleChange} 
+                                    className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500 animate-pulse-once"
+                                    placeholder="Digite o nome da nova cidade"
+                                    autoFocus
+                                />
+                            ) : (
+                                <select 
+                                    name="Cidade" 
+                                    value={formData.Cidade} 
+                                    onChange={handleChange} 
+                                    className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"
+                                >
+                                    <option value="">Selecione...</option>
+                                    {cidades.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            )}
+                            <button 
+                                type="button"
+                                onClick={toggleManualCity}
+                                className={`p-2 rounded-md transition-colors border ${isManualCity ? 'bg-slate-600 hover:bg-slate-500 text-white border-slate-500' : 'bg-sky-600 hover:bg-sky-500 text-white border-sky-500'}`}
+                                title={isManualCity ? "Cancelar e voltar para lista" : "Adicionar nova cidade manualmente"}
+                            >
+                                {isManualCity ? <XCircleIcon className="w-5 h-5"/> : <PlusCircleIcon className="w-5 h-5"/>}
+                            </button>
+                        </div>
                     </div>
                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                          <div className="sm:col-span-2">
                             <label className="block text-sm font-medium text-slate-300 mb-1">Tipo de Veículo</label>
-                             <select name="TipoVeiculo" value={formData.TipoVeiculo} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2">
+                             <select name="TipoVeiculo" value={formData.TipoVeiculo} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500">
                                 <option value="">Selecione...</option>
                                 {tiposVeiculo.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1">KM</label>
-                            <input type="number" name="KM" value={formData.KM} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2"/>
+                            <input type="number" name="KM" value={formData.KM} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"/>
                         </div>
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-slate-300 mb-1">Valor Base (R$)</label>
-                        <input type="number" name="ValorBase" value={formData.ValorBase} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2"/>
+                        <input type="number" name="ValorBase" value={formData.ValorBase} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"/>
                     </div>
                 </div>
                 <div className="mt-8 flex justify-end space-x-3">
                     <button onClick={onClose} className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-md">Cancelar</button>
-                    <button onClick={handleSaveClick} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md">Salvar</button>
+                    <button onClick={handleSaveClick} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md flex items-center">
+                        <CheckCircleIcon className="w-5 h-5 mr-2" />
+                        Salvar
+                    </button>
                 </div>
             </div>
         </div>
@@ -238,9 +275,11 @@ const TaxaModal: React.FC<{
 }> = ({ isOpen, onClose, onSave, parametro }) => {
     const { cidades } = useContext(DataContext);
     const [formData, setFormData] = useState<ParametroTaxa | null>(null);
+    const [isManualCity, setIsManualCity] = useState(false);
 
     useEffect(() => {
         setFormData(parametro);
+        setIsManualCity(false);
     }, [parametro]);
 
     if (!isOpen || !formData) return null;
@@ -248,6 +287,11 @@ const TaxaModal: React.FC<{
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
+    };
+
+    const toggleManualCity = () => {
+        setIsManualCity(!isManualCity);
+        setFormData({ ...formData, Cidade: '' });
     };
 
     const handleSaveClick = () => {
@@ -272,37 +316,67 @@ const TaxaModal: React.FC<{
                 <div className="space-y-4">
                      <div>
                         <label className="block text-sm font-medium text-slate-300 mb-1">Cidade</label>
-                         <select name="Cidade" value={formData.Cidade} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2">
-                            <option value="">Selecione...</option>
-                            {cidades.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                        <div className="flex gap-2">
+                            {isManualCity ? (
+                                <input 
+                                    type="text" 
+                                    name="Cidade" 
+                                    value={formData.Cidade} 
+                                    onChange={handleChange} 
+                                    className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500 animate-pulse-once"
+                                    placeholder="Digite o nome da nova cidade"
+                                    autoFocus
+                                />
+                            ) : (
+                                <select 
+                                    name="Cidade" 
+                                    value={formData.Cidade} 
+                                    onChange={handleChange} 
+                                    className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"
+                                >
+                                    <option value="">Selecione...</option>
+                                    {cidades.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            )}
+                            <button 
+                                type="button"
+                                onClick={toggleManualCity}
+                                className={`p-2 rounded-md transition-colors border ${isManualCity ? 'bg-slate-600 hover:bg-slate-500 text-white border-slate-500' : 'bg-sky-600 hover:bg-sky-500 text-white border-sky-500'}`}
+                                title={isManualCity ? "Cancelar e voltar para lista" : "Adicionar nova cidade manualmente"}
+                            >
+                                {isManualCity ? <XCircleIcon className="w-5 h-5"/> : <PlusCircleIcon className="w-5 h-5"/>}
+                            </button>
+                        </div>
                     </div>
                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                          <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1">Pedágio</label>
-                            <input type="number" name="Pedagio" value={formData.Pedagio} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2"/>
+                            <input type="number" name="Pedagio" value={formData.Pedagio} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"/>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1">Balsa</label>
-                            <input type="number" name="Balsa" value={formData.Balsa} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2"/>
+                            <input type="number" name="Balsa" value={formData.Balsa} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"/>
                         </div>
                          <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1">Ambiental</label>
-                            <input type="number" name="Ambiental" value={formData.Ambiental} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2"/>
+                            <input type="number" name="Ambiental" value={formData.Ambiental} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"/>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1">Chapa</label>
-                            <input type="number" name="Chapa" value={formData.Chapa} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2"/>
+                            <input type="number" name="Chapa" value={formData.Chapa} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"/>
                         </div>
                          <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1">Outras</label>
-                            <input type="number" name="Outras" value={formData.Outras} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2"/>
+                            <input type="number" name="Outras" value={formData.Outras} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"/>
                         </div>
                     </div>
                 </div>
                 <div className="mt-8 flex justify-end space-x-3">
                     <button onClick={onClose} className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-md">Cancelar</button>
-                    <button onClick={handleSaveClick} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md">Salvar</button>
+                    <button onClick={handleSaveClick} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md flex items-center">
+                        <CheckCircleIcon className="w-5 h-5 mr-2" />
+                        Salvar
+                    </button>
                 </div>
             </div>
         </div>

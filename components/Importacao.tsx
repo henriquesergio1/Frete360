@@ -3,7 +3,7 @@ import React, { useState, useContext, ChangeEvent, useEffect } from 'react';
 import { DataContext } from '../context/DataContext.tsx';
 import * as api from '../services/apiService.ts';
 import { CloudUploadIcon, CheckCircleIcon, XCircleIcon, SpinnerIcon, TruckIcon, ExclamationIcon } from './icons.tsx';
-import { Veiculo, VehicleConflict } from '../types.ts';
+import { Veiculo, VehicleConflict, CargaCheckResult, CargaReactivation } from '../types.ts';
 
 type ImportType = 'veiculos' | 'cargas' | 'parametros-valores' | 'parametros-taxas';
 
@@ -13,7 +13,7 @@ interface ImportResult {
     count?: number;
 }
 
-// --- Modal de Resolução de Conflitos ---
+// --- Modal de Resolução de Conflitos (Veículos) ---
 const ConflictModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
@@ -132,6 +132,106 @@ const ConflictModal: React.FC<{
     );
 };
 
+// --- Modal de Reativação de Cargas (Importação) ---
+const ReactivateCargasModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    deletedCargas: CargaReactivation[];
+    newCargasCount: number;
+    onConfirm: (selectedToReactivate: CargaReactivation[]) => void;
+}> = ({ isOpen, onClose, deletedCargas, newCargasCount, onConfirm }) => {
+    const [items, setItems] = useState<CargaReactivation[]>([]);
+
+    useEffect(() => {
+        // Marca todos como false por padrão ou true se preferir
+        setItems(deletedCargas.map(c => ({ ...c, selected: false })));
+    }, [deletedCargas]);
+
+    if (!isOpen) return null;
+
+    const toggleSelection = (index: number) => {
+        setItems(prev => {
+            const newArr = [...prev];
+            newArr[index].selected = !newArr[index].selected;
+            return newArr;
+        });
+    };
+
+    const setAll = (selected: boolean) => {
+        setItems(prev => prev.map(c => ({ ...c, selected })));
+    };
+
+    const handleConfirm = () => {
+        onConfirm(items.filter(c => c.selected));
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+                    <div className="flex items-center">
+                        <ExclamationIcon className="w-8 h-8 text-yellow-500 mr-3" />
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Cargas Excluídas Encontradas</h2>
+                            <p className="text-sm text-slate-400">
+                                Encontramos {items.length} cargas no ERP que já existiam no sistema mas foram excluídas. Deseja reativá-las?
+                            </p>
+                        </div>
+                    </div>
+                    <button onClick={onClose}><XCircleIcon className="w-8 h-8 text-slate-500 hover:text-slate-300" /></button>
+                </div>
+
+                <div className="p-4 bg-slate-900 border-b border-slate-700 flex justify-between items-center">
+                    <span className="text-sky-400 font-bold text-sm">Novas cargas (serão importadas automaticamente): {newCargasCount}</span>
+                    <div className="space-x-3">
+                        <button onClick={() => setAll(true)} className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded border border-slate-600">Marcar Todas</button>
+                        <button onClick={() => setAll(false)} className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded border border-slate-600">Desmarcar Todas</button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4">
+                    <table className="w-full text-sm text-left text-slate-300">
+                        <thead className="text-xs text-slate-400 uppercase bg-slate-700 sticky top-0">
+                            <tr>
+                                <th className="p-3 text-center">Reativar?</th>
+                                <th className="p-3">Nº Carga</th>
+                                <th className="p-3">Cidade</th>
+                                <th className="p-3">Valor ERP</th>
+                                <th className="p-3">Motivo Exclusão Anterior</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-700">
+                            {items.map((item, index) => (
+                                <tr key={index} className={`hover:bg-slate-700/50 cursor-pointer ${item.selected ? 'bg-slate-700/30' : ''}`} onClick={() => toggleSelection(index)}>
+                                    <td className="p-3 text-center">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={item.selected} 
+                                            onChange={() => {}} // Handled by Row Click
+                                            className="w-4 h-4 text-sky-600 bg-slate-700 border-slate-500 rounded focus:ring-sky-500"
+                                        />
+                                    </td>
+                                    <td className="p-3 font-medium text-white">{item.erp.NumeroCarga}</td>
+                                    <td className="p-3">{item.erp.Cidade}</td>
+                                    <td className="p-3 font-mono">{item.erp.ValorCTE.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                    <td className="p-3 text-red-300 text-xs italic">{item.motivoExclusao || 'Sem motivo'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="p-6 border-t border-slate-700 flex justify-end space-x-3 bg-slate-800 rounded-b-lg">
+                    <button onClick={onClose} className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-md transition duration-200">Cancelar</button>
+                    <button onClick={handleConfirm} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition duration-200">
+                        Confirmar e Importar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- Card para Importação de Veículos do ERP ---
 const ERPVeiculosImportCard: React.FC = () => {
     const { reloadData } = useContext(DataContext);
@@ -158,7 +258,7 @@ const ERPVeiculosImportCard: React.FC = () => {
                 setConflictData({ conflicts: checkResult.conflicts, newVehicles: checkResult.newVehicles });
                 setIsModalOpen(true);
             } else {
-                // Apenas novos veículos, sem conflitos. Importar direto? Vamos confirmar.
+                // Apenas novos veículos, sem conflitos.
                 await executeSync(checkResult.newVehicles, []);
             }
 
@@ -236,7 +336,7 @@ const ERPVeiculosImportCard: React.FC = () => {
 };
 
 
-// --- Card para Importação do ERP (Cargas) ---
+// --- Card para Importação do ERP (Cargas) - Refatorado para Fluxo Check/Sync ---
 const ERPImportCard: React.FC = () => {
     const { reloadData } = useContext(DataContext);
     const [startDate, setStartDate] = useState(() => {
@@ -245,69 +345,135 @@ const ERPImportCard: React.FC = () => {
         return date.toISOString().split('T')[0];
     });
     const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+    
     const [result, setResult] = useState<ImportResult | null>(null);
-    const [isImporting, setIsImporting] = useState(false);
+    const [isChecking, setIsChecking] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
-    const handleImport = async () => {
+    // Estado para Reativação
+    const [checkResult, setCheckResult] = useState<CargaCheckResult | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+
+    const handleCheck = async () => {
         setResult(null);
-        setIsImporting(true);
+        setIsChecking(true);
+        setCheckResult(null);
+
         try {
-            const apiResult = await api.importCargasFromERP(startDate, endDate);
-             setResult({ 
-                success: true, 
-                message: apiResult.message, 
-                count: apiResult.count 
-            });
-            if (apiResult.count > 0) {
-                await reloadData('cargas');
+            const checkData = await api.checkCargasERP(startDate, endDate);
+            
+            // Caso 1: Veículos Faltantes
+            if (checkData.missingVehicles.length > 0) {
+                setResult({ 
+                    success: false, 
+                    message: `Não foi possível importar. Veículos não cadastrados: ${checkData.missingVehicles.slice(0, 5).join(', ')}${checkData.missingVehicles.length > 5 ? '...' : ''}. Cadastre-os primeiro.`
+                });
+                return;
             }
+
+            // Caso 2: Nada novo, nada excluído
+            if (checkData.newCargas.length === 0 && checkData.deletedCargas.length === 0) {
+                setResult({ success: true, message: checkData.message || "Nenhuma carga nova ou alteração encontrada." });
+                return;
+            }
+
+            // Caso 3: Tem cargas excluídas -> Abre Modal
+            if (checkData.deletedCargas.length > 0) {
+                setCheckResult(checkData);
+                setIsModalOpen(true);
+                return;
+            }
+
+            // Caso 4: Só tem cargas novas -> Sincroniza direto
+            if (checkData.newCargas.length > 0) {
+                await executeSync(checkData.newCargas, []);
+            }
+
         } catch (error: any) {
-            setResult({ success: false, message: error.message || 'Falha na importação.' });
+            setResult({ success: false, message: error.message || 'Falha na verificação.' });
         } finally {
-            setIsImporting(false);
+            setIsChecking(false);
         }
     };
 
+    const executeSync = async (newCargas: any[], cargasToReactivate: any[]) => {
+        setIsSyncing(true);
+        try {
+            const syncRes = await api.syncCargasERP(newCargas, cargasToReactivate);
+            setResult({ 
+                success: true, 
+                message: syncRes.message, 
+                count: syncRes.count 
+            });
+            await reloadData('cargas');
+            setIsModalOpen(false);
+            setCheckResult(null);
+        } catch (error: any) {
+            setResult({ success: false, message: error.message || "Erro na sincronização." });
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const handleModalConfirm = (selectedToReactivate: CargaReactivation[]) => {
+        if (!checkResult) return;
+        const cargasToReactivate = selectedToReactivate.map(r => r.erp); // Envia os dados novos do ERP para atualizar
+        executeSync(checkResult.newCargas, cargasToReactivate);
+    };
+
     return (
-        <div className="bg-slate-800 p-6 rounded-lg shadow-lg border border-sky-500/30">
-            <div className="flex items-center mb-4">
-                <TruckIcon className="w-8 h-8 text-sky-400 mr-4" />
-                <div>
-                    <h3 className="text-lg font-semibold text-white">Importar Cargas do ERP</h3>
-                    <p className="text-sm text-slate-400">Busque e importe novas cargas diretamente do banco de dados do ERP.</p>
+        <>
+            <div className="bg-slate-800 p-6 rounded-lg shadow-lg border border-sky-500/30">
+                <div className="flex items-center mb-4">
+                    <TruckIcon className="w-8 h-8 text-sky-400 mr-4" />
+                    <div>
+                        <h3 className="text-lg font-semibold text-white">Importar Cargas do ERP</h3>
+                        <p className="text-sm text-slate-400">Busque novas cargas e verifique reativações necessárias.</p>
+                    </div>
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end mt-4">
+                    <div>
+                        <label htmlFor="startDate" className="block text-sm font-medium text-slate-300 mb-1">Data Início</label>
+                        <input type="date" name="startDate" id="startDate" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 text-sm focus:ring-sky-500 focus:border-sky-500" />
+                    </div>
+                    <div>
+                        <label htmlFor="endDate" className="block text-sm font-medium text-slate-300 mb-1">Data Fim</label>
+                        <input type="date" name="endDate" id="endDate" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 text-sm focus:ring-sky-500 focus:border-sky-500" />
+                    </div>
+                     <button 
+                        onClick={handleCheck}
+                        disabled={isChecking || isSyncing}
+                        className="bg-sky-600 hover:bg-sky-500 disabled:bg-sky-800 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md transition duration-200 w-full inline-flex items-center justify-center"
+                     >
+                         {isChecking || isSyncing ? (
+                            <>
+                                <SpinnerIcon className="w-5 h-5 mr-2" />
+                                <span>{isChecking ? 'Verificando...' : 'Sincronizando...'}</span>
+                            </>
+                        ) : (
+                           <span>Buscar Cargas</span>
+                        )}
+                     </button>
+                </div>
+                 {result && (
+                    <div className={`mt-4 p-3 rounded-md text-sm flex items-center ${result.success ? 'bg-green-900/50 text-green-200 border border-green-700/50' : 'bg-red-900/50 text-red-200 border border-red-700/50'}`}>
+                        {result.success ? <CheckCircleIcon className="w-5 h-5 mr-2" /> : <XCircleIcon className="w-5 h-5 mr-2" />}
+                        {result.message}
+                    </div>
+                )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end mt-4">
-                <div>
-                    <label htmlFor="startDate" className="block text-sm font-medium text-slate-300 mb-1">Data Início</label>
-                    <input type="date" name="startDate" id="startDate" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 text-sm focus:ring-sky-500 focus:border-sky-500" />
-                </div>
-                <div>
-                    <label htmlFor="endDate" className="block text-sm font-medium text-slate-300 mb-1">Data Fim</label>
-                    <input type="date" name="endDate" id="endDate" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 text-sm focus:ring-sky-500 focus:border-sky-500" />
-                </div>
-                 <button 
-                    onClick={handleImport}
-                    disabled={isImporting}
-                    className="bg-sky-600 hover:bg-sky-500 disabled:bg-sky-800 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md transition duration-200 w-full inline-flex items-center justify-center"
-                 >
-                     {isImporting ? (
-                        <>
-                            <SpinnerIcon className="w-5 h-5 mr-2" />
-                            <span>Buscando...</span>
-                        </>
-                    ) : (
-                       <span>Buscar e Importar</span>
-                    )}
-                 </button>
-            </div>
-             {result && (
-                <div className={`mt-4 p-3 rounded-md text-sm flex items-center ${result.success ? 'bg-green-900/50 text-green-200 border border-green-700/50' : 'bg-red-900/50 text-red-200 border border-red-700/50'}`}>
-                    {result.success ? <CheckCircleIcon className="w-5 h-5 mr-2" /> : <XCircleIcon className="w-5 h-5 mr-2" />}
-                    {result.message}
-                </div>
+
+            {checkResult && (
+                <ReactivateCargasModal 
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    deletedCargas={checkResult.deletedCargas}
+                    newCargasCount={checkResult.newCargas.length}
+                    onConfirm={handleModalConfirm}
+                />
             )}
-        </div>
+        </>
     );
 };
 

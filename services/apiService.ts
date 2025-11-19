@@ -1,5 +1,5 @@
 
-import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento, VehicleCheckResult, VehicleConflict } from '../types.ts';
+import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento, VehicleCheckResult, VehicleConflict, CargaCheckResult, CargaReactivation } from '../types.ts';
 import * as mockApi from '../api/mockData.ts';
 import Papa from 'papaparse';
 
@@ -147,11 +147,29 @@ const RealService = {
     updateParametroTaxa: (id: number, p: ParametroTaxa): Promise<ParametroTaxa> => apiRequest(`/parametros-taxas/${id}`, 'PUT', p),
     deleteParametroTaxa: (id: number): Promise<void> => apiRequest(`/parametros-taxas/${id}`, 'DELETE'),
     
+    // Método Deprecado (Mantido para compatibilidade, mas redirecionando para o novo fluxo)
     importCargasFromERP: async (sIni: string, sFim: string): Promise<{ message: string; count: number }> => {
-        return apiRequest('/cargas-erp/import', 'POST', { sIni, sFim });
+        // Este método agora faz o fluxo completo (apenas novas) se chamado diretamente, 
+        // mas recomendamos usar checkCargasERP + syncCargasERP.
+        // Para simplicidade, redirecionamos para a rota antiga se ela ainda existir ou adaptamos.
+        // Vamos adaptar para chamar check e depois sync automaticamente (apenas novas)
+        const check = await apiRequest('/cargas-erp/check', 'POST', { sIni, sFim });
+        if (check.newCargas.length > 0) {
+            return apiRequest('/cargas-erp/sync', 'POST', { newCargas: check.newCargas, cargasToReactivate: [] });
+        }
+        return { message: check.message, count: 0 };
     },
 
-    // Novos métodos para Veículos ERP
+    // Novos métodos para Cargas ERP (Fluxo Check -> Sync)
+    checkCargasERP: async (sIni: string, sFim: string): Promise<CargaCheckResult> => {
+        return apiRequest('/cargas-erp/check', 'POST', { sIni, sFim });
+    },
+
+    syncCargasERP: async (newCargas: Carga[], cargasToReactivate: Carga[]): Promise<{ message: string, count: number }> => {
+        return apiRequest('/cargas-erp/sync', 'POST', { newCargas, cargasToReactivate });
+    },
+
+    // Métodos para Veículos ERP
     checkVeiculosERP: async (): Promise<VehicleCheckResult> => {
         return apiGet('/veiculos-erp/check');
     },
@@ -198,7 +216,41 @@ const MockService = {
     
     importCargasFromERP: mockApi.importMockCargasFromERP,
 
-    // Mock para importação de veículos
+    // Mock Cargas
+    checkCargasERP: async (sIni: string, sFim: string): Promise<CargaCheckResult> => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({
+                    newCargas: [
+                        { ID_Carga: 0, NumeroCarga: 'NEW-ERP-001', Cidade: 'Mock City', ValorCTE: 1000, DataCTE: sIni, KM: 100, COD_VEICULO: 'MOCK001', Origem: 'ERP' }
+                    ],
+                    deletedCargas: [
+                        {
+                            erp: { ID_Carga: 0, NumeroCarga: 'DEL-ERP-002', Cidade: 'Old City', ValorCTE: 1200, DataCTE: sIni, KM: 120, COD_VEICULO: 'MOCK001', Origem: 'ERP' },
+                            local: { ID_Carga: 99, NumeroCarga: 'DEL-ERP-002', Cidade: 'Old City', ValorCTE: 1100, DataCTE: sIni, KM: 120, COD_VEICULO: 'MOCK001', Origem: 'ERP', Excluido: true },
+                            motivoExclusao: 'Excluído por engano no mock',
+                            selected: false
+                        }
+                    ],
+                    message: 'Check Mock Concluído',
+                    missingVehicles: []
+                });
+            }, 1000);
+        });
+    },
+    syncCargasERP: async (newCargas: Carga[], cargasToReactivate: Carga[]): Promise<{ message: string, count: number }> => {
+         return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({
+                    message: `(MOCK) Sincronizado. ${newCargas.length} inseridas, ${cargasToReactivate.length} reativadas.`,
+                    count: newCargas.length + cargasToReactivate.length
+                });
+            }, 1000);
+        });
+    },
+
+
+    // Mock Veículos
     checkVeiculosERP: async (): Promise<VehicleCheckResult> => {
         return new Promise((resolve) => {
             setTimeout(() => {
@@ -277,6 +329,8 @@ export const updateParametroTaxa = USE_MOCK ? MockService.updateParametroTaxa : 
 export const deleteParametroTaxa = USE_MOCK ? MockService.deleteParametroTaxa : RealService.deleteParametroTaxa;
 
 export const importCargasFromERP = USE_MOCK ? MockService.importCargasFromERP : RealService.importCargasFromERP;
+export const checkCargasERP = USE_MOCK ? MockService.checkCargasERP : RealService.checkCargasERP;
+export const syncCargasERP = USE_MOCK ? MockService.syncCargasERP : RealService.syncCargasERP;
 
 export const checkVeiculosERP = USE_MOCK ? MockService.checkVeiculosERP : RealService.checkVeiculosERP;
 export const syncVeiculosERP = USE_MOCK ? MockService.syncVeiculosERP : RealService.syncVeiculosERP;

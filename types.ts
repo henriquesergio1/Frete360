@@ -88,3 +88,18 @@ export interface VehicleCheckResult {
     conflicts: VehicleConflict[];
     message: string;
 }
+
+// Interfaces para Importação de Cargas (Reativação)
+export interface CargaReactivation {
+    erp: Carga;        // Dados vindos do ERP (atualizados)
+    local: Carga;      // Dados locais (excluídos)
+    motivoExclusao: string; // Motivo pelo qual foi excluída anteriormente
+    selected: boolean; // Se o usuário quer reativar
+}
+
+export interface CargaCheckResult {
+    newCargas: Carga[];
+    deletedCargas: CargaReactivation[];
+    message: string;
+    missingVehicles: string[];
+}

@@ -192,19 +192,20 @@ app.put('/usuarios/:id', authenticateToken, async (req, res) => {
 // VEÍCULOS
 app.get('/veiculos', authenticateToken, async (req, res) => {
     try { 
-        // Usa SELECT * mas normaliza no retorno para garantir que o casing (maiúscula/minúscula) 
-        // bata com o que o Frontend espera (ex: PLACA -> Placa)
-        const query = 'SELECT * FROM Veiculos ORDER BY Ativo DESC, Placa ASC';
+        // SELEÇÃO EXPLÍCITA PARA GARANTIR O NOME DAS COLUNAS (RESOLVE PROBLEMA DE DADOS SUMINDO)
+        const query = 'SELECT ID_Veiculo, COD_Veiculo, Placa, TipoVeiculo, Motorista, CapacidadeKG, Ativo, Origem, UsuarioCriacao, UsuarioAlteracao FROM Veiculos ORDER BY Ativo DESC, Placa ASC';
+        console.log('[DEBUG API] Solicitando Veículos...');
         const { rows } = await executeQuery(configOdin, query); 
-        const normalizedRows = rows.map(normalizeKeys);
+        console.log(`[DEBUG API] Veículos encontrados: ${rows.length}`);
         
-        // Log de debug para ajudar a identificar o que o banco está retornando
-        if (normalizedRows.length > 0) {
-            console.log('[DEBUG API] Exemplo de Veículo Normalizado:', normalizedRows[0]);
-        }
+        const normalizedRows = rows.map(normalizeKeys);
+        if (normalizedRows.length > 0) console.log('[DEBUG API] Exemplo Normalizado:', normalizedRows[0]);
 
         res.json(normalizedRows); 
-    } catch (error) { res.status(500).json({ message: error.message }); }
+    } catch (error) { 
+        console.error('[DEBUG API] Erro ao buscar veículos:', error);
+        res.status(500).json({ message: error.message }); 
+    }
 });
 app.post('/veiculos', authenticateToken, async (req, res) => {
     const v = req.body;
@@ -273,7 +274,9 @@ app.post('/veiculos-erp/sync', authenticateToken, async (req, res) => {
 // CARGAS
 app.get('/cargas-manuais', authenticateToken, async (req, res) => {
     try { 
-        const { rows } = await executeQuery(configOdin, 'SELECT * FROM CargasManuais ORDER BY DataCTE DESC'); 
+        // SELEÇÃO EXPLÍCITA PARA GARANTIR O NOME DAS COLUNAS
+        const query = 'SELECT ID_Carga, NumeroCarga, Cidade, ValorCTE, DataCTE, KM, COD_VEICULO, Origem, Excluido, MotivoExclusao, MotivoAlteracao, UsuarioCriacao, UsuarioAlteracao FROM CargasManuais ORDER BY DataCTE DESC';
+        const { rows } = await executeQuery(configOdin, query); 
         res.json(rows.map(normalizeKeys)); 
     } catch (e) { res.status(500).json({ message: e.message }); }
 });

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { DataContext } from '../context/DataContext.tsx';
 import { Lancamento, Veiculo } from '../types.ts';
-import { PencilIcon, ChevronDownIcon, ChevronUpIcon, TrashIcon, ExclamationIcon } from './icons.tsx';
+import { PencilIcon, ChevronDownIcon, ChevronUpIcon, TrashIcon, ExclamationIcon, ChartBarIcon, DocumentReportIcon, TruckIcon } from './icons.tsx';
 
 interface RelatoriosProps {
     setView: (view: 'lancamento') => void;
@@ -72,8 +72,9 @@ const DeletionModal: React.FC<{
 
 export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
     const { lancamentos, deleteLancamento, veiculos, setEditingLancamento } = useContext(DataContext);
+    const [activeTab, setActiveTab] = useState<'geral' | 'analitico'>('geral');
     const [filters, setFilters] = useState(initialFilters);
-    const [expandedRows, setExpandedRows] = useState<number[]>([]);
+    const [expandedRows, setExpandedRows] = useState<number[]>([]); // Used for both tables
     const [showOnlyExcluded, setShowOnlyExcluded] = useState(false);
     
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -84,6 +85,7 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
     useEffect(() => {
         let result = lancamentos;
         
+        // Filtro de Excluídos (Geralmente não queremos excluídos no analítico financeiro, mas respeitamos a flag)
         result = result.filter(l => showOnlyExcluded ? l.Excluido : !l.Excluido);
 
         if (filters.startDate) {
@@ -97,8 +99,63 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
         }
 
         setFilteredLancamentos(result);
-        setExpandedRows([]);
+        setExpandedRows([]); // Reset expansion when filters change
     }, [filters, showOnlyExcluded, lancamentos]);
+
+
+    // --- Lógica de Agregação para o Relatório Analítico ---
+    const analyticalData = useMemo(() => {
+        const grouped = new Map<number, {
+            veiculoId: number;
+            veiculo: Veiculo | undefined;
+            count: number;
+            receitaTotal: number;
+            custoTotal: number;
+            totalPedagio: number;
+            totalChapa: number;
+            totalOutras: number; // Balsa + Ambiental + Outras
+            lancamentos: Lancamento[];
+        }>();
+
+        filteredLancamentos.forEach(lancamento => {
+            const vId = lancamento.ID_Veiculo;
+            if (!grouped.has(vId)) {
+                grouped.set(vId, {
+                    veiculoId: vId,
+                    veiculo: veiculos.find(v => v.ID_Veiculo === vId),
+                    count: 0,
+                    receitaTotal: 0,
+                    custoTotal: 0,
+                    totalPedagio: 0,
+                    totalChapa: 0,
+                    totalOutras: 0,
+                    lancamentos: []
+                });
+            }
+            
+            const group = grouped.get(vId)!;
+            
+            // Receita: Soma dos valores das Cargas (CTEs)
+            const receita = lancamento.Cargas.reduce((sum, c) => sum + c.ValorCTE, 0);
+            
+            // Custo: Valor Total do Frete Pago
+            const custo = lancamento.Calculo.ValorTotal;
+
+            group.count++;
+            group.receitaTotal += receita;
+            group.custoTotal += custo;
+            group.totalPedagio += lancamento.Calculo.Pedagio;
+            group.totalChapa += lancamento.Calculo.Chapa;
+            group.totalOutras += (lancamento.Calculo.Balsa + lancamento.Calculo.Ambiental + lancamento.Calculo.Outras);
+            group.lancamentos.push(lancamento);
+        });
+
+        // Retorna array ordenado por Nome do Motorista
+        return Array.from(grouped.values()).sort((a, b) => 
+            (a.veiculo?.Motorista || '').localeCompare(b.veiculo?.Motorista || '')
+        );
+
+    }, [filteredLancamentos, veiculos]);
 
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -140,7 +197,6 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
 
     const handleConfirmDelete = async (motivo: string) => {
         if (!lancamentoToDelete) return;
-        
         try {
             await deleteLancamento(lancamentoToDelete.ID_Lancamento, motivo);
         } catch(error) {
@@ -150,17 +206,18 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
         }
     };
 
+    const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             <DeletionModal
                 isOpen={isDeleteModalOpen}
                 onClose={handleCloseDeleteModal}
                 onConfirm={handleConfirmDelete}
             />
             <div>
-                <h2 className="text-2xl font-bold text-white mb-2">Relatório de Lançamentos</h2>
-                <p className="text-slate-400">Consulte o histórico de fretes lançados com filtros detalhados.</p>
+                <h2 className="text-2xl font-bold text-white mb-2">Relatórios Gerenciais</h2>
+                <p className="text-slate-400">Analise os lançamentos de frete e o desempenho financeiro da frota.</p>
             </div>
 
             {/* Filter Section */}
@@ -201,118 +258,255 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
                 </div>
             </div>
 
-            {/* Results Table */}
-            <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left text-slate-300">
-                        <thead className="text-xs text-slate-400 uppercase bg-slate-700">
-                            <tr>
-                                <th scope="col" className="p-4 w-12"><span className="sr-only">Expandir</span></th>
-                                <th scope="col" className="p-4">Data Frete</th>
-                                <th scope="col" className="p-4">Veículo</th>
-                                <th scope="col" className="p-4">Motorista</th>
-                                <th scope="col" className="p-4">Cidades</th>
-                                <th scope="col" className="p-4">Valor Total</th>
-                                <th scope="col" className="p-4">
-                                    {showOnlyExcluded ? 'Motivo Exclusão' : 'Motivo Subst.'}
-                                </th>
-                                <th scope="col" className="p-4 text-center">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredLancamentos.map((lancamento, index) => {
-                                const veiculo = getVeiculoInfo(lancamento.ID_Veiculo);
-                                // Deduplica cidades para a visualização resumida
-                                const uniqueCidades = [...new Set(lancamento.Cargas.map(c => c.Cidade))];
-                                const cidadesDisplay = uniqueCidades.join(', ');
-                                
-                                const isExpanded = expandedRows.includes(index);
-                                
-                                const rowClasses = showOnlyExcluded
-                                    ? "bg-red-900/10 hover:bg-red-900/20 cursor-pointer"
-                                    : "bg-slate-800 border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer";
+            {/* Tabs Navigation */}
+            <div className="flex space-x-1 border-b border-slate-700">
+                <button
+                    onClick={() => { setActiveTab('geral'); setExpandedRows([]); }}
+                    className={`px-6 py-3 text-sm font-medium rounded-t-lg transition-colors flex items-center ${
+                        activeTab === 'geral'
+                            ? 'bg-slate-800 text-sky-400 border-t border-l border-r border-slate-700'
+                            : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                    }`}
+                >
+                    <DocumentReportIcon className="w-5 h-5 mr-2" />
+                    Geral (Lançamentos)
+                </button>
+                <button
+                    onClick={() => { setActiveTab('analitico'); setExpandedRows([]); }}
+                    className={`px-6 py-3 text-sm font-medium rounded-t-lg transition-colors flex items-center ${
+                        activeTab === 'analitico'
+                            ? 'bg-slate-800 text-sky-400 border-t border-l border-r border-slate-700'
+                            : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                    }`}
+                >
+                    <ChartBarIcon className="w-5 h-5 mr-2" />
+                    Analítico (Por Veículo)
+                </button>
+            </div>
 
-                                // Normalização da data para exibição
-                                const cleanDate = String(lancamento.DataFrete).split('T')[0];
+            {/* TAB CONTENT: GERAL */}
+            {activeTab === 'geral' && (
+                <div className="bg-slate-800 rounded-b-lg shadow-lg overflow-hidden border border-t-0 border-slate-700">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left text-slate-300">
+                            <thead className="text-xs text-slate-400 uppercase bg-slate-700">
+                                <tr>
+                                    <th scope="col" className="p-4 w-12"><span className="sr-only">Expandir</span></th>
+                                    <th scope="col" className="p-4">Data Frete</th>
+                                    <th scope="col" className="p-4">Veículo</th>
+                                    <th scope="col" className="p-4">Motorista</th>
+                                    <th scope="col" className="p-4">Cidades</th>
+                                    <th scope="col" className="p-4">Valor Total</th>
+                                    <th scope="col" className="p-4">
+                                        {showOnlyExcluded ? 'Motivo Exclusão' : 'Motivo Subst.'}
+                                    </th>
+                                    <th scope="col" className="p-4 text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredLancamentos.map((lancamento, index) => {
+                                    const veiculo = getVeiculoInfo(lancamento.ID_Veiculo);
+                                    const uniqueCidades = [...new Set(lancamento.Cargas.map(c => c.Cidade))];
+                                    const cidadesDisplay = uniqueCidades.join(', ');
+                                    const isExpanded = expandedRows.includes(index);
+                                    const rowClasses = showOnlyExcluded
+                                        ? "bg-red-900/10 hover:bg-red-900/20 cursor-pointer"
+                                        : "bg-slate-800 border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer";
+                                    const cleanDate = String(lancamento.DataFrete).split('T')[0];
 
-                                return (
-                                    <React.Fragment key={lancamento.ID_Lancamento}>
-                                        <tr className={rowClasses} onClick={() => toggleRow(index)}>
-                                            <td className="p-4 text-center">
-                                                <button className="text-slate-400">
-                                                    {isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
-                                                </button>
-                                            </td>
-                                            <td className="p-4 whitespace-nowrap">{new Date(cleanDate + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
-                                            <td className="p-4 font-medium text-white whitespace-nowrap">{veiculo?.Placa || 'N/A'}</td>
-                                            <td className="p-4">{veiculo?.Motorista || 'N/A'}</td>
-                                            <td className="p-4 max-w-xs truncate" title={cidadesDisplay}>{cidadesDisplay}</td>
-                                            <td className="p-4 font-mono text-green-400 whitespace-nowrap">{lancamento.Calculo.ValorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                            <td className="p-4">
-                                                {showOnlyExcluded ? (
-                                                     lancamento.MotivoExclusao && (
-                                                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-500/20 text-red-300">
-                                                            {lancamento.MotivoExclusao}
-                                                        </span>
-                                                    )
-                                                ) : (
-                                                    lancamento.Motivo && (
-                                                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-500/20 text-yellow-300">
-                                                            {lancamento.Motivo}
-                                                        </span>
-                                                    )
-                                                )}
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                <div className="flex items-center justify-center gap-4">
-                                                    <button onClick={(e) => handleEdit(e, lancamento)} disabled={showOnlyExcluded} className="text-sky-400 hover:text-sky-300 disabled:text-slate-600 disabled:cursor-not-allowed" title="Editar Lançamento">
-                                                        <PencilIcon className="w-5 h-5"/>
+                                    return (
+                                        <React.Fragment key={lancamento.ID_Lancamento}>
+                                            <tr className={rowClasses} onClick={() => toggleRow(index)}>
+                                                <td className="p-4 text-center">
+                                                    <button className="text-slate-400">
+                                                        {isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
                                                     </button>
-                                                    <button onClick={(e) => handleDeleteClick(e, lancamento)} disabled={showOnlyExcluded} className="text-red-400 hover:text-red-300 disabled:text-slate-600 disabled:cursor-not-allowed" title="Excluir Lançamento">
-                                                        <TrashIcon className="w-5 h-5"/>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        {isExpanded && (
-                                            <tr className={showOnlyExcluded ? 'bg-red-900/10' : 'bg-slate-900/50'}>
-                                                <td colSpan={8} className="p-0">
-                                                    <div className="p-4 m-4 bg-slate-800/50 rounded-md">
-                                                        <h4 className="text-md font-semibold text-slate-300 mb-3">Cargas do Lançamento</h4>
-                                                        <table className="w-full text-sm">
-                                                            <thead className="text-xs text-slate-400 uppercase">
-                                                                <tr>
-                                                                    <th className="p-2 text-left">Nº Carga</th>
-                                                                    <th className="p-2 text-left">Cidade</th>
-                                                                    <th className="p-2 text-left">Valor CTE</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {lancamento.Cargas.map(carga => (
-                                                                    <tr key={carga.ID_Carga} className="border-t border-slate-700">
-                                                                        <td className="p-2 font-medium text-white">{carga.NumeroCarga}</td>
-                                                                        <td className="p-2">{carga.Cidade}</td>
-                                                                        <td className="p-2 font-mono">{carga.ValorCTE.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
+                                                </td>
+                                                <td className="p-4 whitespace-nowrap">{new Date(cleanDate + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                                                <td className="p-4 font-medium text-white whitespace-nowrap">{veiculo?.Placa || 'N/A'}</td>
+                                                <td className="p-4">{veiculo?.Motorista || 'N/A'}</td>
+                                                <td className="p-4 max-w-xs truncate" title={cidadesDisplay}>{cidadesDisplay}</td>
+                                                <td className="p-4 font-mono text-green-400 whitespace-nowrap">{formatCurrency(lancamento.Calculo.ValorTotal)}</td>
+                                                <td className="p-4">
+                                                    {showOnlyExcluded ? (
+                                                         lancamento.MotivoExclusao && (
+                                                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-500/20 text-red-300">
+                                                                {lancamento.MotivoExclusao}
+                                                            </span>
+                                                        )
+                                                    ) : (
+                                                        lancamento.Motivo && (
+                                                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-500/20 text-yellow-300">
+                                                                {lancamento.Motivo}
+                                                            </span>
+                                                        )
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <div className="flex items-center justify-center gap-4">
+                                                        <button onClick={(e) => handleEdit(e, lancamento)} disabled={showOnlyExcluded} className="text-sky-400 hover:text-sky-300 disabled:text-slate-600 disabled:cursor-not-allowed" title="Editar Lançamento">
+                                                            <PencilIcon className="w-5 h-5"/>
+                                                        </button>
+                                                        <button onClick={(e) => handleDeleteClick(e, lancamento)} disabled={showOnlyExcluded} className="text-red-400 hover:text-red-300 disabled:text-slate-600 disabled:cursor-not-allowed" title="Excluir Lançamento">
+                                                            <TrashIcon className="w-5 h-5"/>
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
-                                        )}
-                                    </React.Fragment>
-                                )
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-                {filteredLancamentos.length === 0 && (
-                    <div className="text-center p-8 text-slate-400">
-                        Nenhum lançamento encontrado para os filtros aplicados.
+                                            {isExpanded && (
+                                                <tr className={showOnlyExcluded ? 'bg-red-900/10' : 'bg-slate-900/50'}>
+                                                    <td colSpan={8} className="p-0">
+                                                        <div className="p-4 m-4 bg-slate-800/50 rounded-md border border-slate-700">
+                                                            <h4 className="text-md font-semibold text-slate-300 mb-3">Detalhes das Cargas</h4>
+                                                            <table className="w-full text-sm">
+                                                                <thead className="text-xs text-slate-400 uppercase">
+                                                                    <tr>
+                                                                        <th className="p-2 text-left">Nº Carga</th>
+                                                                        <th className="p-2 text-left">Cidade</th>
+                                                                        <th className="p-2 text-right">Valor CTE</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {lancamento.Cargas.map(carga => (
+                                                                        <tr key={carga.ID_Carga} className="border-t border-slate-700">
+                                                                            <td className="p-2 font-medium text-white">{carga.NumeroCarga}</td>
+                                                                            <td className="p-2">{carga.Cidade}</td>
+                                                                            <td className="p-2 text-right font-mono text-green-300">{formatCurrency(carga.ValorCTE)}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
                     </div>
-                )}
-            </div>
+                    {filteredLancamentos.length === 0 && (
+                        <div className="text-center p-8 text-slate-400">
+                            Nenhum lançamento encontrado para os filtros aplicados.
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* TAB CONTENT: ANALÍTICO */}
+            {activeTab === 'analitico' && (
+                <div className="bg-slate-800 rounded-b-lg shadow-lg overflow-hidden border border-t-0 border-slate-700">
+                     <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left text-slate-300">
+                            <thead className="text-xs text-slate-400 uppercase bg-slate-700">
+                                <tr>
+                                    <th className="p-4 w-12"></th>
+                                    <th className="p-4">Veículo / Motorista</th>
+                                    <th className="p-4 text-center">Qtd. Fretes</th>
+                                    <th className="p-4 text-right text-green-300">Total Receita (CTE)</th>
+                                    <th className="p-4 text-right text-orange-300">Total Custo (Frete)</th>
+                                    <th className="p-4 text-right">Pedágio</th>
+                                    <th className="p-4 text-right">Chapa</th>
+                                    <th className="p-4 text-right" title="Balsa + Ambiental + Outras">Outras Taxas</th>
+                                    <th className="p-4 text-right">Resultado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {analyticalData.map((data, index) => {
+                                    const resultado = data.receitaTotal - data.custoTotal;
+                                    const isExpanded = expandedRows.includes(index);
+                                    
+                                    return (
+                                        <React.Fragment key={data.veiculoId}>
+                                            <tr className="bg-slate-800 border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer" onClick={() => toggleRow(index)}>
+                                                <td className="p-4 text-center">
+                                                    <button className="text-slate-400">
+                                                        {isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                                                    </button>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="font-bold text-white">{data.veiculo?.Placa}</div>
+                                                    <div className="text-xs text-slate-400">{data.veiculo?.Motorista}</div>
+                                                </td>
+                                                <td className="p-4 text-center">{data.count}</td>
+                                                <td className="p-4 text-right font-mono text-green-300">{formatCurrency(data.receitaTotal)}</td>
+                                                <td className="p-4 text-right font-mono text-orange-300">{formatCurrency(data.custoTotal)}</td>
+                                                <td className="p-4 text-right font-mono">{formatCurrency(data.totalPedagio)}</td>
+                                                <td className="p-4 text-right font-mono">{formatCurrency(data.totalChapa)}</td>
+                                                <td className="p-4 text-right font-mono">{formatCurrency(data.totalOutras)}</td>
+                                                <td className={`p-4 text-right font-bold font-mono ${resultado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {formatCurrency(resultado)}
+                                                </td>
+                                            </tr>
+                                            {isExpanded && (
+                                                <tr className="bg-slate-900/30">
+                                                    <td colSpan={9} className="p-0">
+                                                        <div className="p-4 m-4 bg-slate-800/50 rounded-md border border-slate-700">
+                                                            <h4 className="text-md font-semibold text-sky-400 mb-3 flex items-center">
+                                                                <TruckIcon className="w-5 h-5 mr-2"/> Detalhamento das Viagens - {data.veiculo?.Placa}
+                                                            </h4>
+                                                            <table className="w-full text-xs">
+                                                                <thead className="text-slate-500 uppercase bg-slate-800/80">
+                                                                    <tr>
+                                                                        <th className="p-2 text-left">Data</th>
+                                                                        <th className="p-2 text-left">Rota (Cidades)</th>
+                                                                        <th className="p-2 text-right">Receita (CTE)</th>
+                                                                        <th className="p-2 text-right">Custo (Frete)</th>
+                                                                        <th className="p-2 text-right">Resultado</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-700/50">
+                                                                    {data.lancamentos.map(lanc => {
+                                                                        const rec = lanc.Cargas.reduce((s, c) => s + c.ValorCTE, 0);
+                                                                        const cust = lanc.Calculo.ValorTotal;
+                                                                        const res = rec - cust;
+                                                                        const cidades = [...new Set(lanc.Cargas.map(c => c.Cidade))].join(', ');
+                                                                        const cleanDate = String(lanc.DataFrete).split('T')[0];
+
+                                                                        return (
+                                                                            <tr key={lanc.ID_Lancamento}>
+                                                                                <td className="p-2">{new Date(cleanDate + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                                                                                <td className="p-2 text-slate-300">{cidades}</td>
+                                                                                <td className="p-2 text-right text-green-300/80">{formatCurrency(rec)}</td>
+                                                                                <td className="p-2 text-right text-orange-300/80">{formatCurrency(cust)}</td>
+                                                                                <td className={`p-2 text-right font-bold ${res >= 0 ? 'text-green-500' : 'text-red-500'}`}>{formatCurrency(res)}</td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </tbody>
+                            <tfoot className="bg-slate-700 text-slate-200 font-bold">
+                                <tr>
+                                    <td colSpan={2} className="p-4 text-right">TOTAIS GERAIS:</td>
+                                    <td className="p-4 text-center">{analyticalData.reduce((s, d) => s + d.count, 0)}</td>
+                                    <td className="p-4 text-right text-green-400">{formatCurrency(analyticalData.reduce((s, d) => s + d.receitaTotal, 0))}</td>
+                                    <td className="p-4 text-right text-orange-400">{formatCurrency(analyticalData.reduce((s, d) => s + d.custoTotal, 0))}</td>
+                                    <td className="p-4 text-right">{formatCurrency(analyticalData.reduce((s, d) => s + d.totalPedagio, 0))}</td>
+                                    <td className="p-4 text-right">{formatCurrency(analyticalData.reduce((s, d) => s + d.totalChapa, 0))}</td>
+                                    <td className="p-4 text-right">{formatCurrency(analyticalData.reduce((s, d) => s + d.totalOutras, 0))}</td>
+                                    <td className="p-4 text-right">
+                                        {formatCurrency(analyticalData.reduce((s, d) => s + (d.receitaTotal - d.custoTotal), 0))}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                     </div>
+                      {analyticalData.length === 0 && (
+                        <div className="text-center p-8 text-slate-400">
+                            Nenhum dado encontrado para gerar o relatório analítico.
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

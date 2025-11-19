@@ -3,6 +3,9 @@ server {
     listen 80;
     server_name localhost;
 
+    # Aumenta o limite do corpo da requisição para evitar erro 413 em grandes importações
+    client_max_body_size 50M;
+
     # Adiciona os tipos MIME padrão do Nginx
     include /etc/nginx/mime.types;
 

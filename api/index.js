@@ -1,8 +1,3 @@
-
-
-
-
-
 // Carrega as variáveis de ambiente do arquivo .env
 require('dotenv').config();
 
@@ -76,7 +71,11 @@ function executeQuery(config, query, params = []) {
 // --- Criação do Servidor Express ---
 const app = express();
 app.use(cors());
-app.use(express.json());
+
+// AUMENTO DO LIMITE DE PAYLOAD PARA 50MB
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
 const port = process.env.API_PORT || 3000;
 
 app.get('/', (req, res) => res.send('API do Sistema de Fretes está funcionando!'));
@@ -340,10 +339,29 @@ app.post('/cargas-erp/check', async (req, res) => {
         const erpQuery = `
             SELECT
              PDD.NUMSEQETGPDD AS NumeroCarga,
-             RTRIM(LTRIM(PDD.CODVEC)) AS COD_VEICULO,
-             LVR.DATEMSNF_LVRSVC AS DataCTE,
-             CAST(ISNULL(LVR.VALSVCTOTLVRSVC, 0) AS DECIMAL(18, 2)) AS ValorCTE,
-             RTRIM(ISNULL(CDD.DESCDD, 'N/A')) AS Cidade
+             PDD.CODVEC AS COD_VEICULO,
+             ibetpdd.numviavec AS [NUM VIAGEM],
+             ibetvec.numplcvec AS PLACA,
+             IBETTPLPDRVEC.codmtcepg AS COD_MOTORISTA,
+             LVR.NUMNF_LVRSVC AS [N CTE],
+             LVR.CODIDTCTE AS [CHAVE ACESSO CTE],
+             LVR.DATEMSNF_LVRSVC AS [DATA CTE],
+             LVR.CODSERNF_LVRSVC,
+             FORMAT(ROUND((LVR.VALSVCTOTLVRSVC - VALOR.VALCLNLVRSVC) / LVR.VALPSOBRTPDDAGP, 3), 'N3') AS [R$/KG],
+             LVR.VALSVCTOTLVRSVC - VALOR.VALCLNLVRSVC AS [VALOR DO FRETE],
+             ISNULL(VALOR.VALCLNLVRSVC, 0) AS [VALOR ICMS],
+             LVR.VALSVCTOTLVRSVC AS [VALOR CTE],
+             ISNULL(ICMS_ISENTO.VALCLNLVRSVC, ISNULL(ICMS_OUTROS.VALCLNLVRSVC, 0)) AS ISENTO_OUTROS,
+             LVR.VALTOTPDDAGP AS [VALOR TOTAL CARGA],
+             LVR.VALPSOBRTPDDAGP AS [PESO TOTAL CARGA],
+             PDD.INDSERDOCPDD,
+             CET.CODCET AS COD_CLIENTE,
+             RTRIM(CET.NOMRAZSCLCET) AS [RAZAO SOCIAL],
+             RTRIM(CDD.DESCDD) AS CIDADE,
+             ISNULL(LVR.CODBRKMRC, 0) AS CODBRKMRC,
+             '' AS QUEBRA,
+             CASE LVR.INDSTULVRSVC WHEN 1 THEN 'Normal' ELSE 'Cancelado' END AS Status,
+             LVR.JUSCANNF_LVRSVC AS MOTIVO
             FROM Flexx10071188.dbo.IRFTLVRSVC LVR (NOLOCK)
             LEFT JOIN Flexx10071188.dbo.IBETPDDSVCNF_ PDD (NOLOCK)
               ON PDD.CODEMP = LVR.CODEMP
@@ -355,10 +373,61 @@ app.post('/cargas-erp/check', async (req, res) => {
               ON CET.CODEMP = EDR.CODEMP AND CET.CODCET = EDR.CODCET AND EDR.CODTPOEDR = 1
             LEFT JOIN Flexx10071188.dbo.IBETCDD CDD (NOLOCK)
               ON EDR.CODEMP = CDD.CODEMP AND EDR.CODPAS = CDD.CODPAS AND EDR.CODUF_ = CDD.CODUF_ AND EDR.CODCDD = CDD.CODCDD
+            LEFT JOIN Flexx10071188.dbo.IRFTVALLVRSVC VAL
+              ON LVR.CODEMP = VAL.CODEMP
+             AND LVR.TPONF_LVRSVC = VAL.TPONF_LVRSVC
+             AND LVR.DATEMSNF_LVRSVC = VAL.DATEMSNF_LVRSVC
+             AND LVR.NUMNF_LVRSVC = VAL.NUMNF_LVRSVC
+             AND LVR.CODSERNF_LVRSVC = VAL.CODSERNF_LVRSVC
+             AND VAL.CODCLNLVR = 2
+            LEFT JOIN Flexx10071188.dbo.IRFTVALLVRSVC VALOR
+              ON LVR.CODEMP = VALOR.CODEMP
+             AND LVR.TPONF_LVRSVC = VALOR.TPONF_LVRSVC
+             AND LVR.DATEMSNF_LVRSVC = VALOR.DATEMSNF_LVRSVC
+             AND LVR.NUMNF_LVRSVC = VALOR.NUMNF_LVRSVC
+             AND LVR.CODSERNF_LVRSVC = VALOR.CODSERNF_LVRSVC
+             AND VALOR.CODCLNLVR = 3
+            LEFT JOIN Flexx10071188.dbo.IRFTVALLVRSVC ICMS_ISENTO
+              ON LVR.CODEMP = ICMS_ISENTO.CODEMP
+             AND LVR.TPONF_LVRSVC = ICMS_ISENTO.TPONF_LVRSVC
+             AND LVR.DATEMSNF_LVRSVC = ICMS_ISENTO.DATEMSNF_LVRSVC
+             AND LVR.NUMNF_LVRSVC = ICMS_ISENTO.NUMNF_LVRSVC
+             AND LVR.CODSERNF_LVRSVC = ICMS_ISENTO.CODSERNF_LVRSVC
+             AND ICMS_ISENTO.CODCLNLVR = 4
+            LEFT JOIN Flexx10071188.dbo.IRFTVALLVRSVC ICMS_OUTROS
+              ON LVR.CODEMP = ICMS_OUTROS.CODEMP
+             AND LVR.TPONF_LVRSVC = ICMS_OUTROS.TPONF_LVRSVC
+             AND LVR.DATEMSNF_LVRSVC = ICMS_OUTROS.DATEMSNF_LVRSVC
+             AND LVR.NUMNF_LVRSVC = ICMS_OUTROS.NUMNF_LVRSVC
+             AND LVR.CODSERNF_LVRSVC = ICMS_OUTROS.CODSERNF_LVRSVC
+             AND ICMS_OUTROS.CODCLNLVR = 5
+            LEFT JOIN ibetvec ibetvec ON PDD.CODVEC = ibetvec.codvec
+            LEFT JOIN IBETTPLPDRVEC IBETTPLPDRVEC ON PDD.CODVEC = IBETTPLPDRVEC.codvec AND IBETTPLPDRVEC.codmtcepg >= 2000
+            LEFT JOIN ibetpdd ibetpdd ON PDD.NUMDOCPDD = ibetpdd.NUMDOCPDD
             WHERE LVR.DATEMSNF_LVRSVC BETWEEN @sIni AND @sFim
-              AND LVR.INDSTULVRSVC = 1
-              AND PDD.NUMSEQETGPDD IS NOT NULL
-              AND CDD.DESCDD IS NOT NULL
+            GROUP BY
+             PDD.NUMSEQETGPDD,
+             PDD.CODVEC,
+             ibetpdd.numviavec,
+             ibetvec.numplcvec,
+             IBETTPLPDRVEC.codmtcepg,
+             LVR.NUMNF_LVRSVC,
+             LVR.CODIDTCTE,
+             LVR.DATEMSNF_LVRSVC,
+             LVR.CODSERNF_LVRSVC,
+             LVR.VALSVCTOTLVRSVC,
+             VALOR.VALCLNLVRSVC,
+             LVR.VALPSOBRTPDDAGP,
+             ICMS_ISENTO.VALCLNLVRSVC,
+             ICMS_OUTROS.VALCLNLVRSVC,
+             LVR.VALTOTPDDAGP,
+             PDD.INDSERDOCPDD,
+             CET.CODCET,
+             CET.NOMRAZSCLCET,
+             CDD.DESCDD,
+             LVR.CODBRKMRC,
+             LVR.INDSTULVRSVC,
+             LVR.JUSCANNF_LVRSVC
         `;
         const erpParams = [{ name: 'sIni', type: TYPES.Date, value: sIni }, { name: 'sFim', type: TYPES.Date, value: sFim }];
         const { rows: erpRows } = await executeQuery(configErp, erpQuery, erpParams);
@@ -368,13 +437,22 @@ app.post('/cargas-erp/check', async (req, res) => {
         // 1.2 Agregação de Cargas (para lidar com duplicatas no ERP)
         const aggregated = new Map();
         erpRows.forEach(row => {
-            const key = `${row.NumeroCarga}|${row.Cidade}`;
-            if(row.COD_VEICULO) row.COD_VEICULO = row.COD_VEICULO.toString().trim().toUpperCase();
+             // Mapear os campos da query complexa para o nosso formato interno
+            const mappedRow = {
+                NumeroCarga: row.CARGA,
+                COD_VEICULO: row.COD_VEICULO,
+                DataCTE: row['DATA CTE'],
+                ValorCTE: row['VALOR CTE'], // Usando Valor Total do CTE
+                Cidade: row.CIDADE || 'N/A'
+            };
+
+            const key = `${mappedRow.NumeroCarga}|${mappedRow.Cidade}`;
+            if(mappedRow.COD_VEICULO) mappedRow.COD_VEICULO = mappedRow.COD_VEICULO.toString().trim().toUpperCase();
             
             if (aggregated.has(key)) {
-                aggregated.get(key).ValorCTE += row.ValorCTE;
+                aggregated.get(key).ValorCTE += mappedRow.ValorCTE;
             } else {
-                aggregated.set(key, { ...row });
+                aggregated.set(key, { ...mappedRow });
             }
         });
 

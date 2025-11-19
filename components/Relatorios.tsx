@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { DataContext } from '../context/DataContext.tsx';
 import { Lancamento, Veiculo } from '../types.ts';
@@ -228,6 +229,9 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
                                     ? "bg-red-900/10 hover:bg-red-900/20 cursor-pointer"
                                     : "bg-slate-800 border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer";
 
+                                // Normalização da data para exibição
+                                const cleanDate = String(lancamento.DataFrete).split('T')[0];
+
                                 return (
                                     <React.Fragment key={lancamento.ID_Lancamento}>
                                         <tr className={rowClasses} onClick={() => toggleRow(index)}>
@@ -236,7 +240,7 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
                                                     {isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
                                                 </button>
                                             </td>
-                                            <td className="p-4 whitespace-nowrap">{new Date(lancamento.DataFrete + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                                            <td className="p-4 whitespace-nowrap">{new Date(cleanDate + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                                             <td className="p-4 font-medium text-white whitespace-nowrap">{veiculo?.Placa || 'N/A'}</td>
                                             <td className="p-4">{veiculo?.Motorista || 'N/A'}</td>
                                             <td className="p-4 max-w-xs truncate" title={cidades}>{cidades}</td>

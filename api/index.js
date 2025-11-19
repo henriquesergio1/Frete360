@@ -1,3 +1,4 @@
+
 // Carrega as variáveis de ambiente do arquivo .env
 require('dotenv').config();
 
@@ -644,31 +645,61 @@ app.post('/lancamentos', (req, res) => {
     const connection = new Connection(configOdin);
     connection.connect(err => {
         if (err) return res.status(500).json({ message: `Erro de conexão para criar lançamento: ${err.message}` });
-        connection.beginTransaction(err => {
+        connection.beginTransaction(async (err) => { // ASYNC Transaction Start
             if (err) return res.status(500).json({ message: `Erro ao iniciar transação: ${err.message}` });
             
-            const insertLancamentoQuery = `
-                INSERT INTO Lancamentos (DataFrete, ID_Veiculo, CidadeBase, KMBase, ValorBase, Pedagio, Balsa, Ambiental, Chapa, Outras, ValorTotal, Usuario, Motivo)
-                OUTPUT INSERTED.*
-                VALUES (@data, @idv, @cidade, @km, @vb, @ped, @balsa, @amb, @chapa, @outras, @vt, @user, @motivo);
-            `;
-            const requestLancamento = new Request(insertLancamentoQuery, async (err, rowCount, rows) => {
-                if (err) return connection.rollbackTransaction(() => res.status(500).json({ message: `Erro ao inserir lançamento: ${err.message}` }));
-                
-                const newLancamento = rows[0].reduce((obj, col) => { obj[col.metadata.colName] = col.value; return obj; }, {});
-                const newLancamentoId = newLancamento.ID_Lancamento;
-                
-                if (l.Cargas.length === 0) {
-                    connection.commitTransaction(err => {
-                        if (err) return connection.rollbackTransaction(() => res.status(500).json({ message: `Erro ao commitar transação vazia: ${err.message}` }));
-                        res.status(201).json({ ...newLancamento, Cargas: [], Calculo: calc });
-                        connection.close();
-                    });
-                    return;
+            try {
+                // 1. SUBSTITUIÇÃO AUTOMÁTICA: Excluir lançamentos anteriores dessas cargas
+                // Se o usuário informou um motivo ou se cargas duplicadas foram detectadas
+                if (l.Cargas.length > 0) {
+                    const motivoSubstituicao = l.Motivo ? `Substituído: ${l.Motivo}` : 'Substituído por novo lançamento.';
+                    
+                    for (const c of l.Cargas) {
+                        // Query para encontrar e excluir lançamentos ATIVOS que contenham esta carga
+                        const deactivateQuery = `
+                            UPDATE L
+                            SET L.Excluido = 1, L.MotivoExclusao = @motivo
+                            FROM Lancamentos L
+                            INNER JOIN Lancamento_Cargas LC ON L.ID_Lancamento = LC.ID_Lancamento
+                            WHERE LC.ID_Carga_Origem = @idc AND L.Excluido = 0;
+                        `;
+                        await new Promise((resolve, reject) => {
+                             const reqDeactivate = new Request(deactivateQuery, (err) => err ? reject(err) : resolve());
+                             reqDeactivate.addParameter('idc', TYPES.Int, c.ID_Carga);
+                             reqDeactivate.addParameter('motivo', TYPES.NVarChar, motivoSubstituicao);
+                             connection.execSql(reqDeactivate);
+                        });
+                    }
                 }
 
-                // REFACTOR: Sequencial Insert to avoid "LoggedIn state" error
-                try {
+                // 2. INSERIR NOVO LANÇAMENTO
+                const insertLancamentoQuery = `
+                    INSERT INTO Lancamentos (DataFrete, ID_Veiculo, CidadeBase, KMBase, ValorBase, Pedagio, Balsa, Ambiental, Chapa, Outras, ValorTotal, Usuario, Motivo)
+                    OUTPUT INSERTED.*
+                    VALUES (@data, @idv, @cidade, @km, @vb, @ped, @balsa, @amb, @chapa, @outras, @vt, @user, @motivo);
+                `;
+                
+                let newLancamento = null;
+                await new Promise((resolve, reject) => {
+                     const requestLancamento = new Request(insertLancamentoQuery, (err, rowCount, rows) => {
+                        if (err) return reject(err);
+                        newLancamento = rows[0].reduce((obj, col) => { obj[col.metadata.colName] = col.value; return obj; }, {});
+                        resolve();
+                     });
+                    requestLancamento.addParameter('data', TYPES.Date, l.DataFrete); requestLancamento.addParameter('idv', TYPES.Int, l.ID_Veiculo);
+                    requestLancamento.addParameter('cidade', TYPES.NVarChar, calc.CidadeBase); requestLancamento.addParameter('km', TYPES.Int, calc.KMBase);
+                    requestLancamento.addParameter('vb', TYPES.Decimal, calc.ValorBase, { precision: 18, scale: 2 }); requestLancamento.addParameter('ped', TYPES.Decimal, calc.Pedagio, { precision: 18, scale: 2 });
+                    requestLancamento.addParameter('balsa', TYPES.Decimal, calc.Balsa, { precision: 18, scale: 2 }); requestLancamento.addParameter('amb', TYPES.Decimal, calc.Ambiental, { precision: 18, scale: 2 });
+                    requestLancamento.addParameter('chapa', TYPES.Decimal, calc.Chapa, { precision: 18, scale: 2 }); requestLancamento.addParameter('outras', TYPES.Decimal, calc.Outras, { precision: 18, scale: 2 });
+                    requestLancamento.addParameter('vt', TYPES.Decimal, calc.ValorTotal, { precision: 18, scale: 2 }); requestLancamento.addParameter('user', TYPES.NVarChar, l.Usuario);
+                    requestLancamento.addParameter('motivo', TYPES.NVarChar, l.Motivo);
+                    connection.execSql(requestLancamento);
+                });
+
+                const newLancamentoId = newLancamento.ID_Lancamento;
+
+                // 3. INSERIR LINKS DE CARGAS
+                if (l.Cargas.length > 0) {
                     for (const c of l.Cargas) {
                         const insertCargaQuery = `
                             INSERT INTO Lancamento_Cargas (ID_Lancamento, ID_Carga_Origem, NumeroCarga, Cidade, ValorCTE, DataCTE, KM, COD_VEICULO)
@@ -691,26 +722,21 @@ app.post('/lancamentos', (req, res) => {
                             connection.execSql(requestCarga);
                         });
                     }
-
-                    connection.commitTransaction(err => {
-                        if (err) return connection.rollbackTransaction(() => res.status(500).json({ message: `Erro ao commitar transação: ${err.message}` }));
-                        res.status(201).json({ ...newLancamento, Cargas: l.Cargas, Calculo: calc });
-                        connection.close();
-                    });
-
-                } catch (insertError) {
-                    connection.rollbackTransaction(() => res.status(500).json({ message: `Erro ao inserir carga do lançamento: ${insertError.message}` }));
                 }
-            });
 
-            requestLancamento.addParameter('data', TYPES.Date, l.DataFrete); requestLancamento.addParameter('idv', TYPES.Int, l.ID_Veiculo);
-            requestLancamento.addParameter('cidade', TYPES.NVarChar, calc.CidadeBase); requestLancamento.addParameter('km', TYPES.Int, calc.KMBase);
-            requestLancamento.addParameter('vb', TYPES.Decimal, calc.ValorBase, { precision: 18, scale: 2 }); requestLancamento.addParameter('ped', TYPES.Decimal, calc.Pedagio, { precision: 18, scale: 2 });
-            requestLancamento.addParameter('balsa', TYPES.Decimal, calc.Balsa, { precision: 18, scale: 2 }); requestLancamento.addParameter('amb', TYPES.Decimal, calc.Ambiental, { precision: 18, scale: 2 });
-            requestLancamento.addParameter('chapa', TYPES.Decimal, calc.Chapa, { precision: 18, scale: 2 }); requestLancamento.addParameter('outras', TYPES.Decimal, calc.Outras, { precision: 18, scale: 2 });
-            requestLancamento.addParameter('vt', TYPES.Decimal, calc.ValorTotal, { precision: 18, scale: 2 }); requestLancamento.addParameter('user', TYPES.NVarChar, l.Usuario);
-            requestLancamento.addParameter('motivo', TYPES.NVarChar, l.Motivo);
-            connection.execSql(requestLancamento);
+                // 4. COMMIT
+                connection.commitTransaction(err => {
+                    if (err) return connection.rollbackTransaction(() => res.status(500).json({ message: `Erro ao commitar transação: ${err.message}` }));
+                    res.status(201).json({ ...newLancamento, Cargas: l.Cargas, Calculo: calc });
+                    connection.close();
+                });
+
+            } catch (error) {
+                connection.rollbackTransaction(() => {
+                     connection.close();
+                     res.status(500).json({ message: `Erro ao processar lançamento: ${error.message}` });
+                });
+            }
         });
     });
 });

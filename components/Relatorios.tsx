@@ -222,7 +222,10 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
                         <tbody>
                             {filteredLancamentos.map((lancamento, index) => {
                                 const veiculo = getVeiculoInfo(lancamento.ID_Veiculo);
-                                const cidades = lancamento.Cargas.map(c => c.Cidade).join(', ');
+                                // Deduplica cidades para a visualização resumida
+                                const uniqueCidades = [...new Set(lancamento.Cargas.map(c => c.Cidade))];
+                                const cidadesDisplay = uniqueCidades.join(', ');
+                                
                                 const isExpanded = expandedRows.includes(index);
                                 
                                 const rowClasses = showOnlyExcluded
@@ -243,7 +246,7 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
                                             <td className="p-4 whitespace-nowrap">{new Date(cleanDate + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                                             <td className="p-4 font-medium text-white whitespace-nowrap">{veiculo?.Placa || 'N/A'}</td>
                                             <td className="p-4">{veiculo?.Motorista || 'N/A'}</td>
-                                            <td className="p-4 max-w-xs truncate" title={cidades}>{cidades}</td>
+                                            <td className="p-4 max-w-xs truncate" title={cidadesDisplay}>{cidadesDisplay}</td>
                                             <td className="p-4 font-mono text-green-400 whitespace-nowrap">{lancamento.Calculo.ValorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                             <td className="p-4">
                                                 {showOnlyExcluded ? (

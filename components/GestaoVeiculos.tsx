@@ -6,7 +6,8 @@ import { PlusCircleIcon, PencilIcon, XCircleIcon, CheckCircleIcon } from './icon
 
 // --- Tag Component for Veiculo Origin ---
 const OrigemTag: React.FC<{ origem?: 'ERP' | 'CSV' | 'Manual' }> = ({ origem }) => {
-    if (!origem) return null;
+    // Se a origem não estiver definida (veículos antigos), assume Manual
+    const displayOrigem = origem || 'Manual';
 
     const styles = {
         ERP: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
@@ -15,8 +16,8 @@ const OrigemTag: React.FC<{ origem?: 'ERP' | 'CSV' | 'Manual' }> = ({ origem }) 
     };
 
     return (
-        <span className={`ml-2 px-2 py-0.5 text-xs font-semibold rounded-full ${styles[origem] || styles.Manual}`}>
-            {origem}
+        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${styles[displayOrigem] || styles.Manual}`}>
+            {displayOrigem}
         </span>
     );
 };
@@ -258,8 +259,10 @@ export const GestaoVeiculos: React.FC = () => {
                             {filteredVeiculos.map(veiculo => (
                                 <tr key={veiculo.ID_Veiculo} className="bg-slate-800 border-b border-slate-700 hover:bg-slate-700/50">
                                     <td className="p-4 font-medium text-white">
-                                        {veiculo.Placa}
-                                        <OrigemTag origem={veiculo.Origem} />
+                                        <div className="flex items-center gap-2">
+                                            {veiculo.Placa}
+                                            <OrigemTag origem={veiculo.Origem} />
+                                        </div>
                                     </td>
                                     <td className="p-4">{veiculo.Motorista}</td>
                                     <td className="p-4">{veiculo.TipoVeiculo}</td>

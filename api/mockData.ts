@@ -1,3 +1,4 @@
+
 import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento } from '../types.ts';
 
 // --- MOCK DATA ---
@@ -5,10 +6,10 @@ import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lanc
 
 // Veículos
 const mockVeiculos: Veiculo[] = [
-    { ID_Veiculo: 1, COD_Veiculo: 'TRUCK001', Placa: 'ABC-1234', TipoVeiculo: 'Carreta', Motorista: 'João da Silva', CapacidadeKG: 25000, Ativo: true },
-    { ID_Veiculo: 2, COD_Veiculo: 'TRUCK002', Placa: 'DEF-5678', TipoVeiculo: 'Truck', Motorista: 'Maria Oliveira', CapacidadeKG: 12000, Ativo: true },
-    { ID_Veiculo: 3, COD_Veiculo: 'VAN001', Placa: 'GHI-9012', TipoVeiculo: 'VUC', Motorista: 'Pedro Martins', CapacidadeKG: 3000, Ativo: false },
-    { ID_Veiculo: 4, COD_Veiculo: 'TRUCK003', Placa: 'JKL-3456', TipoVeiculo: 'Carreta', Motorista: 'Carlos Pereira', CapacidadeKG: 27000, Ativo: true },
+    { ID_Veiculo: 1, COD_Veiculo: 'TRUCK001', Placa: 'ABC-1234', TipoVeiculo: 'Carreta', Motorista: 'João da Silva', CapacidadeKG: 25000, Ativo: true, Origem: 'ERP' },
+    { ID_Veiculo: 2, COD_Veiculo: 'TRUCK002', Placa: 'DEF-5678', TipoVeiculo: 'Truck', Motorista: 'Maria Oliveira', CapacidadeKG: 12000, Ativo: true, Origem: 'Manual' },
+    { ID_Veiculo: 3, COD_Veiculo: 'VAN001', Placa: 'GHI-9012', TipoVeiculo: 'VUC', Motorista: 'Pedro Martins', CapacidadeKG: 3000, Ativo: false, Origem: 'Manual' },
+    { ID_Veiculo: 4, COD_Veiculo: 'TRUCK003', Placa: 'JKL-3456', TipoVeiculo: 'Carreta', Motorista: 'Carlos Pereira', CapacidadeKG: 27000, Ativo: true, Origem: 'CSV' },
 ];
 
 // Cargas (Manuais e do ERP)

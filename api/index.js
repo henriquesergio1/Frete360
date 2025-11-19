@@ -1,4 +1,5 @@
 
+
 // Carrega as variáveis de ambiente
 require('dotenv').config();
 
@@ -160,14 +161,26 @@ app.get('/veiculos', authenticateToken, async (req, res) => {
 });
 app.post('/veiculos', authenticateToken, async (req, res) => {
     const v = req.body;
-    const query = `INSERT INTO Veiculos (COD_Veiculo, Placa, TipoVeiculo, Motorista, CapacidadeKG, Ativo, Origem) OUTPUT INSERTED.* VALUES (@cod, @placa, @tipo, @mot, @cap, @ativo, @origem)`;
-    const params = [{name:'cod',type:TYPES.NVarChar,value:v.COD_Veiculo}, {name:'placa',type:TYPES.NVarChar,value:v.Placa}, {name:'tipo',type:TYPES.NVarChar,value:v.TipoVeiculo}, {name:'mot',type:TYPES.NVarChar,value:v.Motorista}, {name:'cap',type:TYPES.Int,value:v.CapacidadeKG}, {name:'ativo',type:TYPES.Bit,value:v.Ativo}, {name:'origem',type:TYPES.NVarChar,value:v.Origem||'Manual'}];
+    const u = req.user;
+    const query = `INSERT INTO Veiculos (COD_Veiculo, Placa, TipoVeiculo, Motorista, CapacidadeKG, Ativo, Origem, UsuarioCriacao) OUTPUT INSERTED.* VALUES (@cod, @placa, @tipo, @mot, @cap, @ativo, @origem, @user)`;
+    const params = [
+        {name:'cod',type:TYPES.NVarChar,value:v.COD_Veiculo}, {name:'placa',type:TYPES.NVarChar,value:v.Placa}, 
+        {name:'tipo',type:TYPES.NVarChar,value:v.TipoVeiculo}, {name:'mot',type:TYPES.NVarChar,value:v.Motorista}, 
+        {name:'cap',type:TYPES.Int,value:v.CapacidadeKG}, {name:'ativo',type:TYPES.Bit,value:v.Ativo}, 
+        {name:'origem',type:TYPES.NVarChar,value:v.Origem||'Manual'}, {name:'user',type:TYPES.NVarChar,value:u.usuario}
+    ];
     try { const { rows } = await executeQuery(configOdin, query, params); res.status(201).json(rows[0]); } catch (e) { res.status(500).json({ message: e.message }); }
 });
 app.put('/veiculos/:id', authenticateToken, async (req, res) => {
     const v = req.body;
-    const query = `UPDATE Veiculos SET COD_Veiculo=@cod, Placa=@placa, TipoVeiculo=@tipo, Motorista=@mot, CapacidadeKG=@cap, Ativo=@ativo OUTPUT INSERTED.* WHERE ID_Veiculo=@id`;
-    const params = [{name:'id',type:TYPES.Int,value:req.params.id}, {name:'cod',type:TYPES.NVarChar,value:v.COD_Veiculo}, {name:'placa',type:TYPES.NVarChar,value:v.Placa}, {name:'tipo',type:TYPES.NVarChar,value:v.TipoVeiculo}, {name:'mot',type:TYPES.NVarChar,value:v.Motorista}, {name:'cap',type:TYPES.Int,value:v.CapacidadeKG}, {name:'ativo',type:TYPES.Bit,value:v.Ativo}];
+    const u = req.user;
+    const query = `UPDATE Veiculos SET COD_Veiculo=@cod, Placa=@placa, TipoVeiculo=@tipo, Motorista=@mot, CapacidadeKG=@cap, Ativo=@ativo, UsuarioAlteracao=@user OUTPUT INSERTED.* WHERE ID_Veiculo=@id`;
+    const params = [
+        {name:'id',type:TYPES.Int,value:req.params.id}, {name:'cod',type:TYPES.NVarChar,value:v.COD_Veiculo}, 
+        {name:'placa',type:TYPES.NVarChar,value:v.Placa}, {name:'tipo',type:TYPES.NVarChar,value:v.TipoVeiculo}, 
+        {name:'mot',type:TYPES.NVarChar,value:v.Motorista}, {name:'cap',type:TYPES.Int,value:v.CapacidadeKG}, 
+        {name:'ativo',type:TYPES.Bit,value:v.Ativo}, {name:'user',type:TYPES.NVarChar,value:u.usuario}
+    ];
     try { const { rows } = await executeQuery(configOdin, query, params); res.json(rows[0]); } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
@@ -190,18 +203,19 @@ app.get('/veiculos-erp/check', authenticateToken, async (req, res) => {
 
 app.post('/veiculos-erp/sync', authenticateToken, async (req, res) => {
     const { newVehicles, vehiclesToUpdate } = req.body;
+    const user = req.user;
     const conn = new Connection(configOdin);
     conn.connect(err => {
         if (err) return res.status(500).json({ message: err.message });
         conn.beginTransaction(async err => {
             try {
                 for(const v of newVehicles) {
-                    const q = `INSERT INTO Veiculos (COD_Veiculo, Placa, TipoVeiculo, Motorista, CapacidadeKG, Ativo, Origem) VALUES (@c, @p, @t, @m, @k, @a, 'ERP')`;
-                    await new Promise((res, rej) => { const r=new Request(q, e=>e?rej(e):res()); r.addParameter('c',TYPES.NVarChar,v.COD_Veiculo); r.addParameter('p',TYPES.NVarChar,v.Placa); r.addParameter('t',TYPES.NVarChar,v.TipoVeiculo); r.addParameter('m',TYPES.NVarChar,v.Motorista); r.addParameter('k',TYPES.Int,v.CapacidadeKG); r.addParameter('a',TYPES.Bit,v.Ativo); conn.execSql(r); });
+                    const q = `INSERT INTO Veiculos (COD_Veiculo, Placa, TipoVeiculo, Motorista, CapacidadeKG, Ativo, Origem, UsuarioCriacao) VALUES (@c, @p, @t, @m, @k, @a, 'ERP', @u)`;
+                    await new Promise((res, rej) => { const r=new Request(q, e=>e?rej(e):res()); r.addParameter('c',TYPES.NVarChar,v.COD_Veiculo); r.addParameter('p',TYPES.NVarChar,v.Placa); r.addParameter('t',TYPES.NVarChar,v.TipoVeiculo); r.addParameter('m',TYPES.NVarChar,v.Motorista); r.addParameter('k',TYPES.Int,v.CapacidadeKG); r.addParameter('a',TYPES.Bit,v.Ativo); r.addParameter('u',TYPES.NVarChar,user.usuario); conn.execSql(r); });
                 }
                 for(const v of vehiclesToUpdate) {
-                    const q = `UPDATE Veiculos SET Placa=@p, TipoVeiculo=@t, Motorista=@m, CapacidadeKG=@k, Ativo=@a WHERE COD_Veiculo=@c`;
-                    await new Promise((res, rej) => { const r=new Request(q, e=>e?rej(e):res()); r.addParameter('p',TYPES.NVarChar,v.Placa); r.addParameter('t',TYPES.NVarChar,v.TipoVeiculo); r.addParameter('m',TYPES.NVarChar,v.Motorista); r.addParameter('k',TYPES.Int,v.CapacidadeKG); r.addParameter('a',TYPES.Bit,v.Ativo); r.addParameter('c',TYPES.NVarChar,v.COD_Veiculo); conn.execSql(r); });
+                    const q = `UPDATE Veiculos SET Placa=@p, TipoVeiculo=@t, Motorista=@m, CapacidadeKG=@k, Ativo=@a, UsuarioAlteracao=@u WHERE COD_Veiculo=@c`;
+                    await new Promise((res, rej) => { const r=new Request(q, e=>e?rej(e):res()); r.addParameter('p',TYPES.NVarChar,v.Placa); r.addParameter('t',TYPES.NVarChar,v.TipoVeiculo); r.addParameter('m',TYPES.NVarChar,v.Motorista); r.addParameter('k',TYPES.Int,v.CapacidadeKG); r.addParameter('a',TYPES.Bit,v.Ativo); r.addParameter('c',TYPES.NVarChar,v.COD_Veiculo); r.addParameter('u',TYPES.NVarChar,user.usuario); conn.execSql(r); });
                 }
                 conn.commitTransaction(() => { res.json({ message: 'Sync OK', count: newVehicles.length + vehiclesToUpdate.length }); conn.close(); });
             } catch(e) { conn.rollbackTransaction(() => { res.status(500).json({ message: e.message }); conn.close(); }); }
@@ -215,8 +229,14 @@ app.get('/cargas-manuais', authenticateToken, async (req, res) => {
 });
 app.post('/cargas-manuais', authenticateToken, async (req, res) => {
     const c = req.body;
-    const q = `INSERT INTO CargasManuais (NumeroCarga, Cidade, ValorCTE, DataCTE, KM, COD_VEICULO, Origem) OUTPUT INSERTED.* VALUES (@n, @c, @v, @d, @k, @cv, @o)`;
-    const p = [{name:'n',type:TYPES.NVarChar,value:String(c.NumeroCarga)}, {name:'c',type:TYPES.NVarChar,value:c.Cidade}, {name:'v',type:TYPES.Decimal,value:c.ValorCTE,options:{precision:18,scale:2}}, {name:'d',type:TYPES.Date,value:c.DataCTE}, {name:'k',type:TYPES.Int,value:c.KM}, {name:'cv',type:TYPES.NVarChar,value:c.COD_VEICULO}, {name:'o',type:TYPES.NVarChar,value:c.Origem||'Manual'}];
+    const u = req.user;
+    const q = `INSERT INTO CargasManuais (NumeroCarga, Cidade, ValorCTE, DataCTE, KM, COD_VEICULO, Origem, UsuarioCriacao) OUTPUT INSERTED.* VALUES (@n, @c, @v, @d, @k, @cv, @o, @u)`;
+    const p = [
+        {name:'n',type:TYPES.NVarChar,value:String(c.NumeroCarga)}, {name:'c',type:TYPES.NVarChar,value:c.Cidade}, 
+        {name:'v',type:TYPES.Decimal,value:c.ValorCTE,options:{precision:18,scale:2}}, {name:'d',type:TYPES.Date,value:c.DataCTE}, 
+        {name:'k',type:TYPES.Int,value:c.KM}, {name:'cv',type:TYPES.NVarChar,value:c.COD_VEICULO}, 
+        {name:'o',type:TYPES.NVarChar,value:c.Origem||'Manual'}, {name:'u',type:TYPES.NVarChar,value:u.usuario}
+    ];
     try { const { rows } = await executeQuery(configOdin, q, p); res.status(201).json(rows[0]); } catch (e) { res.status(500).json({ message: e.message }); }
 });
 app.put('/cargas-manuais/:id', authenticateToken, async (req, res) => {
@@ -225,12 +245,18 @@ app.put('/cargas-manuais/:id', authenticateToken, async (req, res) => {
     let q, p;
     if(c.Excluido) {
         const m = `${c.MotivoExclusao} (por ${user.usuario})`;
-        q = `UPDATE CargasManuais SET Excluido=1, MotivoExclusao=@m OUTPUT INSERTED.* WHERE ID_Carga=@id`;
-        p = [{name:'id',type:TYPES.Int,value:req.params.id}, {name:'m',type:TYPES.NVarChar,value:m}];
+        q = `UPDATE CargasManuais SET Excluido=1, MotivoExclusao=@m, UsuarioAlteracao=@u OUTPUT INSERTED.* WHERE ID_Carga=@id`;
+        p = [{name:'id',type:TYPES.Int,value:req.params.id}, {name:'m',type:TYPES.NVarChar,value:m}, {name:'u',type:TYPES.NVarChar,value:user.usuario}];
     } else {
         const m = c.MotivoAlteracao ? `${c.MotivoAlteracao} (por ${user.usuario})` : `Edição (por ${user.usuario})`;
-        q = `UPDATE CargasManuais SET NumeroCarga=@n, Cidade=@c, ValorCTE=@v, DataCTE=@d, KM=@k, COD_VEICULO=@cv, MotivoAlteracao=@m OUTPUT INSERTED.* WHERE ID_Carga=@id`;
-        p = [{name:'id',type:TYPES.Int,value:req.params.id}, {name:'n',type:TYPES.NVarChar,value:String(c.NumeroCarga)}, {name:'c',type:TYPES.NVarChar,value:c.Cidade}, {name:'v',type:TYPES.Decimal,value:c.ValorCTE,options:{precision:18,scale:2}}, {name:'d',type:TYPES.Date,value:c.DataCTE}, {name:'k',type:TYPES.Int,value:c.KM}, {name:'cv',type:TYPES.NVarChar,value:c.COD_VEICULO}, {name:'m',type:TYPES.NVarChar,value:m}];
+        q = `UPDATE CargasManuais SET NumeroCarga=@n, Cidade=@c, ValorCTE=@v, DataCTE=@d, KM=@k, COD_VEICULO=@cv, MotivoAlteracao=@m, UsuarioAlteracao=@u OUTPUT INSERTED.* WHERE ID_Carga=@id`;
+        p = [
+            {name:'id',type:TYPES.Int,value:req.params.id}, {name:'n',type:TYPES.NVarChar,value:String(c.NumeroCarga)}, 
+            {name:'c',type:TYPES.NVarChar,value:c.Cidade}, {name:'v',type:TYPES.Decimal,value:c.ValorCTE,options:{precision:18,scale:2}}, 
+            {name:'d',type:TYPES.Date,value:c.DataCTE}, {name:'k',type:TYPES.Int,value:c.KM}, 
+            {name:'cv',type:TYPES.NVarChar,value:c.COD_VEICULO}, {name:'m',type:TYPES.NVarChar,value:m},
+            {name:'u',type:TYPES.NVarChar,value:user.usuario}
+        ];
     }
     try { const { rows } = await executeQuery(configOdin, q, p); res.json(rows[0]); } catch (e) { res.status(500).json({ message: e.message }); }
 });
@@ -279,18 +305,29 @@ app.post('/cargas-erp/sync', authenticateToken, async (req, res) => {
                 const BATCH = 200;
                 for (let i = 0; i < newCargas.length; i += BATCH) {
                     const chunk = newCargas.slice(i, i + BATCH);
-                    let q = "INSERT INTO CargasManuais (NumeroCarga, Cidade, ValorCTE, DataCTE, KM, COD_VEICULO, Origem) VALUES ";
+                    let q = "INSERT INTO CargasManuais (NumeroCarga, Cidade, ValorCTE, DataCTE, KM, COD_VEICULO, Origem, UsuarioCriacao) VALUES ";
                     const p = [];
                     chunk.forEach((c, idx) => {
-                        q += (idx > 0 ? ", " : "") + `(@n${idx}, @c${idx}, @v${idx}, @d${idx}, @k${idx}, @cv${idx}, 'ERP')`;
-                        p.push({name:`n${idx}`,type:TYPES.NVarChar,value:String(c.NumeroCarga)},{name:`c${idx}`,type:TYPES.NVarChar,value:c.Cidade},{name:`v${idx}`,type:TYPES.Decimal,value:c.ValorCTE,options:{precision:18,scale:2}},{name:`d${idx}`,type:TYPES.Date,value:c.DataCTE},{name:`k${idx}`,type:TYPES.Int,value:c.KM},{name:`cv${idx}`,type:TYPES.NVarChar,value:c.COD_VEICULO});
+                        q += (idx > 0 ? ", " : "") + `(@n${idx}, @c${idx}, @v${idx}, @d${idx}, @k${idx}, @cv${idx}, 'ERP', @u${idx})`;
+                        p.push(
+                            {name:`n${idx}`,type:TYPES.NVarChar,value:String(c.NumeroCarga)},{name:`c${idx}`,type:TYPES.NVarChar,value:c.Cidade},
+                            {name:`v${idx}`,type:TYPES.Decimal,value:c.ValorCTE,options:{precision:18,scale:2}},{name:`d${idx}`,type:TYPES.Date,value:c.DataCTE},
+                            {name:`k${idx}`,type:TYPES.Int,value:c.KM},{name:`cv${idx}`,type:TYPES.NVarChar,value:c.COD_VEICULO},
+                            {name:`u${idx}`,type:TYPES.NVarChar,value:user.usuario}
+                        );
                     });
                     await new Promise((res, rej) => { const r = new Request(q+";", e => e ? rej(e) : res()); p.forEach(pp => r.addParameter(pp.name, pp.type, pp.value, pp.options)); conn.execSql(r); });
                 }
                 for (const c of cargasToReactivate) {
                     const m = `Reativado ERP (por ${user.usuario})`;
-                    const q = `UPDATE CargasManuais SET Excluido=0, MotivoExclusao=NULL, ValorCTE=@v, DataCTE=@d, MotivoAlteracao=@m WHERE NumeroCarga=@n AND Cidade=@c AND Origem='ERP'`;
-                    await new Promise((res, rej) => { const r=new Request(q, e=>e?rej(e):res()); r.addParameter('v',TYPES.Decimal,c.ValorCTE,{precision:18,scale:2}); r.addParameter('d',TYPES.Date,c.DataCTE); r.addParameter('m',TYPES.NVarChar,m); r.addParameter('n',TYPES.NVarChar,String(c.NumeroCarga)); r.addParameter('c',TYPES.NVarChar,c.Cidade); conn.execSql(r); });
+                    const q = `UPDATE CargasManuais SET Excluido=0, MotivoExclusao=NULL, ValorCTE=@v, DataCTE=@d, MotivoAlteracao=@m, UsuarioAlteracao=@u WHERE NumeroCarga=@n AND Cidade=@c AND Origem='ERP'`;
+                    await new Promise((res, rej) => { 
+                        const r=new Request(q, e=>e?rej(e):res()); 
+                        r.addParameter('v',TYPES.Decimal,c.ValorCTE,{precision:18,scale:2}); r.addParameter('d',TYPES.Date,c.DataCTE); 
+                        r.addParameter('m',TYPES.NVarChar,m); r.addParameter('n',TYPES.NVarChar,String(c.NumeroCarga)); 
+                        r.addParameter('c',TYPES.NVarChar,c.Cidade); r.addParameter('u',TYPES.NVarChar,user.usuario);
+                        conn.execSql(r); 
+                    });
                 }
                 conn.commitTransaction(() => { res.json({ message: 'Sync OK', count: newCargas.length + cargasToReactivate.length }); conn.close(); });
             } catch (e) { conn.rollbackTransaction(() => { res.status(500).json({ message: e.message }); conn.close(); }); }
@@ -323,7 +360,11 @@ app.post('/lancamentos', authenticateToken, (req, res) => {
                 if (l.Cargas.length > 0) {
                     const m = l.Motivo ? `Substituído: ${l.Motivo} (por ${user.usuario})` : `Substituído por novo (por ${user.usuario})`;
                     for (const c of l.Cargas) {
-                        await new Promise((res, rej) => { const r = new Request(`UPDATE L SET L.Excluido=1, L.MotivoExclusao=@m FROM Lancamentos L INNER JOIN Lancamento_Cargas LC ON L.ID_Lancamento=LC.ID_Lancamento WHERE LC.ID_Carga_Origem=@idc AND L.Excluido=0`, e => e?rej(e):res()); r.addParameter('idc',TYPES.Int,c.ID_Carga); r.addParameter('m',TYPES.NVarChar,m); conn.execSql(r); });
+                        await new Promise((res, rej) => { 
+                            const r = new Request(`UPDATE L SET L.Excluido=1, L.MotivoExclusao=@m, L.UsuarioAlteracao=@u FROM Lancamentos L INNER JOIN Lancamento_Cargas LC ON L.ID_Lancamento=LC.ID_Lancamento WHERE LC.ID_Carga_Origem=@idc AND L.Excluido=0`, e => e?rej(e):res()); 
+                            r.addParameter('idc',TYPES.Int,c.ID_Carga); r.addParameter('m',TYPES.NVarChar,m); r.addParameter('u',TYPES.NVarChar,user.usuario);
+                            conn.execSql(r); 
+                        });
                     }
                 }
                 let newId;
@@ -353,25 +394,77 @@ app.post('/lancamentos', authenticateToken, (req, res) => {
 
 app.put('/lancamentos/:id', authenticateToken, async (req, res) => {
     const m = `${req.body.motivo} (por ${req.user.usuario})`;
-    try { await executeQuery(configOdin, `UPDATE Lancamentos SET Excluido=1, MotivoExclusao=@m WHERE ID_Lancamento=@id`, [{name:'id',type:TYPES.Int,value:req.params.id}, {name:'m',type:TYPES.NVarChar,value:m}]); res.status(204).send(); } catch(e) { res.status(500).json({message:e.message}); }
+    const u = req.user.usuario;
+    try { 
+        await executeQuery(configOdin, `UPDATE Lancamentos SET Excluido=1, MotivoExclusao=@m, UsuarioAlteracao=@u WHERE ID_Lancamento=@id`, [
+            {name:'id',type:TYPES.Int,value:req.params.id}, 
+            {name:'m',type:TYPES.NVarChar,value:m},
+            {name:'u',type:TYPES.NVarChar,value:u}
+        ]); 
+        res.status(204).send(); 
+    } catch(e) { res.status(500).json({message:e.message}); }
 });
 
 // PARAMS (VALORES & TAXAS)
 app.get('/parametros-valores', authenticateToken, async (req, res) => { try{res.json((await executeQuery(configOdin,'SELECT * FROM ParametrosValores WHERE Excluido=0')).rows)}catch(e){res.status(500).json({message:e.message})} });
-app.post('/parametros-valores', authenticateToken, async (req, res) => { const p=req.body; try{res.status(201).json((await executeQuery(configOdin,`INSERT INTO ParametrosValores (Cidade, TipoVeiculo, ValorBase, KM) OUTPUT INSERTED.* VALUES (@c, @t, @v, @k)`,[{name:'c',type:TYPES.NVarChar,value:p.Cidade},{name:'t',type:TYPES.NVarChar,value:p.TipoVeiculo},{name:'v',type:TYPES.Decimal,value:p.ValorBase,options:{precision:18,scale:2}},{name:'k',type:TYPES.Int,value:p.KM}])).rows[0])}catch(e){res.status(500).json({message:e.message})} });
+
+app.post('/parametros-valores', authenticateToken, async (req, res) => { 
+    const p=req.body; const u=req.user;
+    try{res.status(201).json((await executeQuery(configOdin,`INSERT INTO ParametrosValores (Cidade, TipoVeiculo, ValorBase, KM, UsuarioCriacao) OUTPUT INSERTED.* VALUES (@c, @t, @v, @k, @u)`,[
+        {name:'c',type:TYPES.NVarChar,value:p.Cidade},{name:'t',type:TYPES.NVarChar,value:p.TipoVeiculo},
+        {name:'v',type:TYPES.Decimal,value:p.ValorBase,options:{precision:18,scale:2}},{name:'k',type:TYPES.Int,value:p.KM},
+        {name:'u',type:TYPES.NVarChar,value:u.usuario}
+    ])).rows[0])}catch(e){res.status(500).json({message:e.message})} 
+});
+
 app.put('/parametros-valores/:id', authenticateToken, async (req, res) => { 
     const p=req.body; const u=req.user; let q,params;
-    if(p.Excluido) { const m=`${p.MotivoExclusao} (por ${u.usuario})`; q=`UPDATE ParametrosValores SET Excluido=1, MotivoExclusao=@m OUTPUT INSERTED.* WHERE ID_Parametro=@id`; params=[{name:'id',type:TYPES.Int,value:req.params.id},{name:'m',type:TYPES.NVarChar,value:m}]; }
-    else { const m=p.MotivoAlteracao?`${p.MotivoAlteracao} (por ${u.usuario})`:`Edição (por ${u.usuario})`; q=`UPDATE ParametrosValores SET Cidade=@c, TipoVeiculo=@t, ValorBase=@v, KM=@k, MotivoAlteracao=@m OUTPUT INSERTED.* WHERE ID_Parametro=@id`; params=[{name:'id',type:TYPES.Int,value:req.params.id},{name:'c',type:TYPES.NVarChar,value:p.Cidade},{name:'t',type:TYPES.NVarChar,value:p.TipoVeiculo},{name:'v',type:TYPES.Decimal,value:p.ValorBase,options:{precision:18,scale:2}},{name:'k',type:TYPES.Int,value:p.KM},{name:'m',type:TYPES.NVarChar,value:m}]; }
+    if(p.Excluido) { 
+        const m=`${p.MotivoExclusao} (por ${u.usuario})`; 
+        q=`UPDATE ParametrosValores SET Excluido=1, MotivoExclusao=@m, UsuarioAlteracao=@u OUTPUT INSERTED.* WHERE ID_Parametro=@id`; 
+        params=[{name:'id',type:TYPES.Int,value:req.params.id},{name:'m',type:TYPES.NVarChar,value:m},{name:'u',type:TYPES.NVarChar,value:u.usuario}]; 
+    } else { 
+        const m=p.MotivoAlteracao?`${p.MotivoAlteracao} (por ${u.usuario})`:`Edição (por ${u.usuario})`; 
+        q=`UPDATE ParametrosValores SET Cidade=@c, TipoVeiculo=@t, ValorBase=@v, KM=@k, MotivoAlteracao=@m, UsuarioAlteracao=@u OUTPUT INSERTED.* WHERE ID_Parametro=@id`; 
+        params=[
+            {name:'id',type:TYPES.Int,value:req.params.id},{name:'c',type:TYPES.NVarChar,value:p.Cidade},
+            {name:'t',type:TYPES.NVarChar,value:p.TipoVeiculo},{name:'v',type:TYPES.Decimal,value:p.ValorBase,options:{precision:18,scale:2}},
+            {name:'k',type:TYPES.Int,value:p.KM},{name:'m',type:TYPES.NVarChar,value:m},
+            {name:'u',type:TYPES.NVarChar,value:u.usuario}
+        ]; 
+    }
     try{res.json((await executeQuery(configOdin,q,params)).rows[0])}catch(e){res.status(500).json({message:e.message})} 
 });
 
 app.get('/parametros-taxas', authenticateToken, async (req, res) => { try{res.json((await executeQuery(configOdin,'SELECT * FROM ParametrosTaxas WHERE Excluido=0')).rows)}catch(e){res.status(500).json({message:e.message})} });
-app.post('/parametros-taxas', authenticateToken, async (req, res) => { const p=req.body; try{res.status(201).json((await executeQuery(configOdin,`INSERT INTO ParametrosTaxas (Cidade, Pedagio, Balsa, Ambiental, Chapa, Outras) OUTPUT INSERTED.* VALUES (@c,@p,@b,@a,@ch,@o)`,[{name:'c',type:TYPES.NVarChar,value:p.Cidade},{name:'p',type:TYPES.Decimal,value:p.Pedagio,options:{precision:18,scale:2}},{name:'b',type:TYPES.Decimal,value:p.Balsa,options:{precision:18,scale:2}},{name:'a',type:TYPES.Decimal,value:p.Ambiental,options:{precision:18,scale:2}},{name:'ch',type:TYPES.Decimal,value:p.Chapa,options:{precision:18,scale:2}},{name:'o',type:TYPES.Decimal,value:p.Outras,options:{precision:18,scale:2}}])).rows[0])}catch(e){res.status(500).json({message:e.message})} });
+
+app.post('/parametros-taxas', authenticateToken, async (req, res) => { 
+    const p=req.body; const u=req.user;
+    try{res.status(201).json((await executeQuery(configOdin,`INSERT INTO ParametrosTaxas (Cidade, Pedagio, Balsa, Ambiental, Chapa, Outras, UsuarioCriacao) OUTPUT INSERTED.* VALUES (@c,@p,@b,@a,@ch,@o,@u)`,[
+        {name:'c',type:TYPES.NVarChar,value:p.Cidade},{name:'p',type:TYPES.Decimal,value:p.Pedagio,options:{precision:18,scale:2}},
+        {name:'b',type:TYPES.Decimal,value:p.Balsa,options:{precision:18,scale:2}},{name:'a',type:TYPES.Decimal,value:p.Ambiental,options:{precision:18,scale:2}},
+        {name:'ch',type:TYPES.Decimal,value:p.Chapa,options:{precision:18,scale:2}},{name:'o',type:TYPES.Decimal,value:p.Outras,options:{precision:18,scale:2}},
+        {name:'u',type:TYPES.NVarChar,value:u.usuario}
+    ])).rows[0])}catch(e){res.status(500).json({message:e.message})} 
+});
+
 app.put('/parametros-taxas/:id', authenticateToken, async (req, res) => {
     const p=req.body; const u=req.user; let q,params;
-    if(p.Excluido) { const m=`${p.MotivoExclusao} (por ${u.usuario})`; q=`UPDATE ParametrosTaxas SET Excluido=1, MotivoExclusao=@m OUTPUT INSERTED.* WHERE ID_Taxa=@id`; params=[{name:'id',type:TYPES.Int,value:req.params.id},{name:'m',type:TYPES.NVarChar,value:m}]; }
-    else { const m=p.MotivoAlteracao?`${p.MotivoAlteracao} (por ${u.usuario})`:`Edição (por ${u.usuario})`; q=`UPDATE ParametrosTaxas SET Cidade=@c, Pedagio=@p, Balsa=@b, Ambiental=@a, Chapa=@ch, Outras=@o, MotivoAlteracao=@m OUTPUT INSERTED.* WHERE ID_Taxa=@id`; params=[{name:'id',type:TYPES.Int,value:req.params.id},{name:'c',type:TYPES.NVarChar,value:p.Cidade},{name:'p',type:TYPES.Decimal,value:p.Pedagio,options:{precision:18,scale:2}},{name:'b',type:TYPES.Decimal,value:p.Balsa,options:{precision:18,scale:2}},{name:'a',type:TYPES.Decimal,value:p.Ambiental,options:{precision:18,scale:2}},{name:'ch',type:TYPES.Decimal,value:p.Chapa,options:{precision:18,scale:2}},{name:'o',type:TYPES.Decimal,value:p.Outras,options:{precision:18,scale:2}},{name:'m',type:TYPES.NVarChar,value:m}]; }
+    if(p.Excluido) { 
+        const m=`${p.MotivoExclusao} (por ${u.usuario})`; 
+        q=`UPDATE ParametrosTaxas SET Excluido=1, MotivoExclusao=@m, UsuarioAlteracao=@u OUTPUT INSERTED.* WHERE ID_Taxa=@id`; 
+        params=[{name:'id',type:TYPES.Int,value:req.params.id},{name:'m',type:TYPES.NVarChar,value:m},{name:'u',type:TYPES.NVarChar,value:u.usuario}]; 
+    } else { 
+        const m=p.MotivoAlteracao?`${p.MotivoAlteracao} (por ${u.usuario})`:`Edição (por ${u.usuario})`; 
+        q=`UPDATE ParametrosTaxas SET Cidade=@c, Pedagio=@p, Balsa=@b, Ambiental=@a, Chapa=@ch, Outras=@o, MotivoAlteracao=@m, UsuarioAlteracao=@u OUTPUT INSERTED.* WHERE ID_Taxa=@id`; 
+        params=[
+            {name:'id',type:TYPES.Int,value:req.params.id},{name:'c',type:TYPES.NVarChar,value:p.Cidade},
+            {name:'p',type:TYPES.Decimal,value:p.Pedagio,options:{precision:18,scale:2}},{name:'b',type:TYPES.Decimal,value:p.Balsa,options:{precision:18,scale:2}},
+            {name:'a',type:TYPES.Decimal,value:p.Ambiental,options:{precision:18,scale:2}},{name:'ch',type:TYPES.Decimal,value:p.Chapa,options:{precision:18,scale:2}},
+            {name:'o',type:TYPES.Decimal,value:p.Outras,options:{precision:18,scale:2}},{name:'m',type:TYPES.NVarChar,value:m},
+            {name:'u',type:TYPES.NVarChar,value:u.usuario}
+        ]; 
+    }
     try{res.json((await executeQuery(configOdin,q,params)).rows[0])}catch(e){res.status(500).json({message:e.message})}
 });
 

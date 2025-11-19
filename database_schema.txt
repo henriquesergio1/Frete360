@@ -1,4 +1,5 @@
 
+
 -- =================================================================================
 -- SCRIPT DE ATUALIZAÇÃO/CRIAÇÃO DO BANCO DE DADOS (SEGURO)
 -- Dialeto: Transact-SQL (T-SQL) para Microsoft SQL Server
@@ -178,9 +179,45 @@ END
 GO
 
 -- =================================================================================
--- 3. INICIALIZAÇÃO DE DADOS PADRÃO
+-- 3. ATUALIZAÇÃO DE AUDITORIA (ADICIONAR COLUNAS NOVAS SE NÃO EXISTIREM)
+-- =================================================================================
+
+-- Veiculos
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioCriacao' AND Object_ID = Object_ID('Veiculos'))
+BEGIN ALTER TABLE Veiculos ADD UsuarioCriacao NVARCHAR(100); END;
+
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioAlteracao' AND Object_ID = Object_ID('Veiculos'))
+BEGIN ALTER TABLE Veiculos ADD UsuarioAlteracao NVARCHAR(100); END;
+
+-- CargasManuais
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioCriacao' AND Object_ID = Object_ID('CargasManuais'))
+BEGIN ALTER TABLE CargasManuais ADD UsuarioCriacao NVARCHAR(100); END;
+
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioAlteracao' AND Object_ID = Object_ID('CargasManuais'))
+BEGIN ALTER TABLE CargasManuais ADD UsuarioAlteracao NVARCHAR(100); END;
+
+-- ParametrosValores
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioCriacao' AND Object_ID = Object_ID('ParametrosValores'))
+BEGIN ALTER TABLE ParametrosValores ADD UsuarioCriacao NVARCHAR(100); END;
+
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioAlteracao' AND Object_ID = Object_ID('ParametrosValores'))
+BEGIN ALTER TABLE ParametrosValores ADD UsuarioAlteracao NVARCHAR(100); END;
+
+-- ParametrosTaxas
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioCriacao' AND Object_ID = Object_ID('ParametrosTaxas'))
+BEGIN ALTER TABLE ParametrosTaxas ADD UsuarioCriacao NVARCHAR(100); END;
+
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioAlteracao' AND Object_ID = Object_ID('ParametrosTaxas'))
+BEGIN ALTER TABLE ParametrosTaxas ADD UsuarioAlteracao NVARCHAR(100); END;
+
+-- Lancamentos (UsuarioCriacao ja existe como 'Usuario')
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioAlteracao' AND Object_ID = Object_ID('Lancamentos'))
+BEGIN ALTER TABLE Lancamentos ADD UsuarioAlteracao NVARCHAR(100); END;
+
+GO
+
+-- =================================================================================
+-- 4. INICIALIZAÇÃO DE DADOS PADRÃO
 -- =================================================================================
 
 -- A criação do usuário 'admin' agora é gerenciada pela API (Node.js)
--- para garantir que o hash da senha (bcrypt) seja gerado corretamente
--- de acordo com a biblioteca/ambiente em execução.

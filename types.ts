@@ -1,4 +1,5 @@
 
+
 export interface Veiculo {
   ID_Veiculo: number;
   COD_Veiculo: string;
@@ -8,6 +9,8 @@ export interface Veiculo {
   CapacidadeKG: number;
   Ativo: boolean;
   Origem?: 'ERP' | 'CSV' | 'Manual';
+  UsuarioCriacao?: string;
+  UsuarioAlteracao?: string;
 }
 
 export interface Carga {
@@ -22,6 +25,8 @@ export interface Carga {
   Excluido?: boolean;
   MotivoExclusao?: string;
   MotivoAlteracao?: string;
+  UsuarioCriacao?: string;
+  UsuarioAlteracao?: string;
 }
 
 export interface ParametroValor {
@@ -33,6 +38,8 @@ export interface ParametroValor {
   Excluido?: boolean;
   MotivoExclusao?: string;
   MotivoAlteracao?: string;
+  UsuarioCriacao?: string;
+  UsuarioAlteracao?: string;
 }
 
 export interface ParametroTaxa {
@@ -46,6 +53,8 @@ export interface ParametroTaxa {
   Excluido?: boolean;
   MotivoExclusao?: string;
   MotivoAlteracao?: string;
+  UsuarioCriacao?: string;
+  UsuarioAlteracao?: string;
 }
 
 export interface MotivoSubstituicao {
@@ -73,6 +82,7 @@ export interface Lancamento {
   Motivo?: string;
   Excluido?: boolean;
   MotivoExclusao?: string;
+  UsuarioAlteracao?: string;
 }
 
 export type NewLancamento = Omit<Lancamento, 'ID_Lancamento'>;

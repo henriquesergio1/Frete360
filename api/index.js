@@ -76,12 +76,14 @@ const port = process.env.API_PORT || 3000;
 // Inicializa Admin se não existir
 const initAdminUser = async () => {
     try {
-        const { rows } = await executeQuery(configOdin, "SELECT COUNT(*) as count FROM Usuarios");
-        if (rows[0].count === 0) {
+        // Verifica especificamente se o usuário 'admin' existe
+        const { rows } = await executeQuery(configOdin, "SELECT ID_Usuario FROM Usuarios WHERE Usuario = 'admin'");
+        if (rows.length === 0) {
+            console.log('Usuário admin não encontrado. Criando...');
             const hashedPassword = await bcrypt.hash('admin', SALT_ROUNDS);
             const query = `INSERT INTO Usuarios (Nome, Usuario, SenhaHash, Perfil, Ativo) VALUES ('Administrador', 'admin', @pass, 'Admin', 1)`;
             await executeQuery(configOdin, query, [{ name: 'pass', type: TYPES.NVarChar, value: hashedPassword }]);
-            console.log('Usuário Admin padrão criado.');
+            console.log('Usuário Admin padrão criado com sucesso.');
         }
     } catch (e) { console.error('Erro init admin:', e.message); }
 };

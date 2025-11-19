@@ -181,17 +181,6 @@ GO
 -- 3. INICIALIZAÇÃO DE DADOS PADRÃO
 -- =================================================================================
 
--- Criação do Usuário ADMIN padrão (Senha: admin)
--- Só insere se não existir NENHUM usuário chamado 'admin'
-IF NOT EXISTS (SELECT 1 FROM Usuarios WHERE Usuario = 'admin')
-BEGIN
-    -- O hash abaixo é para a senha 'admin'
-    INSERT INTO Usuarios (Nome, Usuario, SenhaHash, Perfil, Ativo)
-    VALUES ('Administrador', 'admin', '$2a$10$TwL.5.5.5.5.5.5.5.5.5.e.5.5.5.5.5.5.5.5.5.5', 'Admin', 1);
-    PRINT 'Usuário Admin padrão criado com sucesso.';
-END
-ELSE
-BEGIN
-    PRINT 'Usuário Admin já existe.';
-END
-GO
+-- A criação do usuário 'admin' agora é gerenciada pela API (Node.js)
+-- para garantir que o hash da senha (bcrypt) seja gerado corretamente
+-- de acordo com a biblioteca/ambiente em execução.

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { Carga } from '../types.ts';
 import { DataContext } from '../context/DataContext.tsx';
-import { PlusCircleIcon, PencilIcon, XCircleIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon, ExclamationIcon } from './icons.tsx';
+import { PlusCircleIcon, PencilIcon, XCircleIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon, ExclamationIcon, ArrowLeftIcon, ArrowRightIcon } from './icons.tsx';
 
 // --- Tag Component for Carga Origin ---
 const OrigemTag: React.FC<{ origem?: 'ERP' | 'CSV' | 'Manual' }> = ({ origem }) => {
@@ -234,26 +234,59 @@ const CargaModal: React.FC<{
 
 export const GestaoCargas: React.FC = () => {
     const { cargas, addCarga, updateCarga, deleteCarga } = useContext(DataContext);
+    
+    // Filtros e Busca
     const [searchTerm, setSearchTerm] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [showOnlyExcluded, setShowOnlyExcluded] = useState(false);
+
+    // Paginação
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(25);
+
+    // Modais
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCarga, setEditingCarga] = useState<Carga | null>(null);
-    const [sortConfig, setSortConfig] = useState<{ key: keyof Carga; direction: 'ascending' | 'descending' } | null>({ key: 'DataCTE', direction: 'descending' });
-    
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [cargaToDelete, setCargaToDelete] = useState<Carga | null>(null);
-    const [showOnlyExcluded, setShowOnlyExcluded] = useState(false);
+
+    // Ordenação
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Carga; direction: 'ascending' | 'descending' } | null>({ key: 'DataCTE', direction: 'descending' });
+    
+    // Resetar página ao mudar filtros
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, startDate, endDate, showOnlyExcluded, itemsPerPage]);
 
     const filteredAndSortedCargas = useMemo(() => {
         let result = cargas.filter(c => showOnlyExcluded ? c.Excluido : !c.Excluido);
 
+        // Filtro de Texto
         if (searchTerm) {
+             const lowerTerm = searchTerm.toLowerCase();
              result = result.filter(c =>
-                c.NumeroCarga.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                c.Cidade.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                c.COD_VEICULO.toLowerCase().includes(searchTerm.toLowerCase())
+                c.NumeroCarga.toLowerCase().includes(lowerTerm) ||
+                c.Cidade.toLowerCase().includes(lowerTerm) ||
+                c.COD_VEICULO.toLowerCase().includes(lowerTerm)
             );
         }
 
+        // Filtro de Data
+        if (startDate) {
+            result = result.filter(c => {
+                const dataCarga = String(c.DataCTE).split('T')[0];
+                return dataCarga >= startDate;
+            });
+        }
+        if (endDate) {
+            result = result.filter(c => {
+                const dataCarga = String(c.DataCTE).split('T')[0];
+                return dataCarga <= endDate;
+            });
+        }
+
+        // Ordenação
         if (sortConfig !== null) {
             result.sort((a, b) => {
                 if (a[sortConfig.key] < b[sortConfig.key]) {
@@ -266,7 +299,15 @@ export const GestaoCargas: React.FC = () => {
             });
         }
         return result;
-    }, [cargas, searchTerm, sortConfig, showOnlyExcluded]);
+    }, [cargas, searchTerm, sortConfig, showOnlyExcluded, startDate, endDate]);
+
+    // Lógica de Paginação
+    const totalItems = filteredAndSortedCargas.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const paginatedCargas = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filteredAndSortedCargas.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredAndSortedCargas, currentPage, itemsPerPage]);
 
     const requestSort = (key: keyof Carga) => {
         let direction: 'ascending' | 'descending' = 'ascending';
@@ -344,8 +385,14 @@ export const GestaoCargas: React.FC = () => {
         }
     };
 
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+        }
+    };
+
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             <CargaModal 
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
@@ -362,33 +409,67 @@ export const GestaoCargas: React.FC = () => {
                 <p className="text-slate-400">Consulte, cadastre e edite as cargas disponíveis para frete.</p>
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <input
-                    type="text"
-                    placeholder="Buscar por Nº Carga, Cidade ou Veículo..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full sm:w-auto flex-grow bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"
-                />
-                 <div className="flex items-center self-center sm:self-auto">
-                    <input 
-                        type="checkbox" 
-                        id="showOnlyExcludedCargas" 
-                        checked={showOnlyExcluded} 
-                        onChange={(e) => setShowOnlyExcluded(e.target.checked)}
-                        className="h-4 w-4 rounded border-slate-500 bg-slate-700 text-sky-600 focus:ring-sky-500"
-                    />
-                    <label htmlFor="showOnlyExcludedCargas" className="ml-2 text-sm text-slate-300 whitespace-nowrap">
-                        Exibir excluídas
-                    </label>
+            {/* Barra de Ferramentas (Filtros e Ações) */}
+            <div className="bg-slate-800 p-4 rounded-lg shadow-sm space-y-4 lg:space-y-0 lg:flex lg:items-end lg:justify-between gap-4">
+                
+                {/* Grupo de Filtros */}
+                <div className="flex flex-col md:flex-row gap-4 flex-grow">
+                    <div className="flex-grow max-w-md">
+                        <label className="block text-xs text-slate-400 mb-1">Buscar</label>
+                        <input
+                            type="text"
+                            placeholder="Nº Carga, Cidade ou Veículo..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500 text-sm"
+                        />
+                    </div>
+                    
+                    <div className="flex gap-2">
+                         <div>
+                            <label className="block text-xs text-slate-400 mb-1">Data Início</label>
+                            <input 
+                                type="date" 
+                                value={startDate} 
+                                onChange={(e) => setStartDate(e.target.value)} 
+                                className="bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500 text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-slate-400 mb-1">Data Fim</label>
+                            <input 
+                                type="date" 
+                                value={endDate} 
+                                onChange={(e) => setEndDate(e.target.value)} 
+                                className="bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500 text-sm"
+                            />
+                        </div>
+                    </div>
                 </div>
-                <button onClick={handleOpenModalForNew} className="w-full sm:w-auto bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition duration-200 flex items-center justify-center">
-                    <PlusCircleIcon className="w-5 h-5 mr-2" />
-                    Cadastrar Nova Carga
-                </button>
+
+                {/* Grupo de Ações e Checkbox */}
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="flex items-center">
+                        <input 
+                            type="checkbox" 
+                            id="showOnlyExcludedCargas" 
+                            checked={showOnlyExcluded} 
+                            onChange={(e) => setShowOnlyExcluded(e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-500 bg-slate-700 text-sky-600 focus:ring-sky-500"
+                        />
+                        <label htmlFor="showOnlyExcludedCargas" className="ml-2 text-sm text-slate-300 whitespace-nowrap">
+                            Exibir excluídas
+                        </label>
+                    </div>
+                    <button onClick={handleOpenModalForNew} className="w-full sm:w-auto bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition duration-200 flex items-center justify-center text-sm whitespace-nowrap">
+                        <PlusCircleIcon className="w-5 h-5 mr-2" />
+                        Nova Carga
+                    </button>
+                </div>
             </div>
 
-            <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
+            {/* Tabela de Dados */}
+            <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left text-slate-300">
                         <thead className="text-xs text-slate-400 uppercase bg-slate-700">
@@ -405,7 +486,7 @@ export const GestaoCargas: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredAndSortedCargas.map(carga => {
+                            {paginatedCargas.map(carga => {
                                 const rowClasses = showOnlyExcluded
                                     ? "bg-red-900/10"
                                     : "bg-slate-800 border-b border-slate-700 hover:bg-slate-700/50";
@@ -451,8 +532,50 @@ export const GestaoCargas: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+                
+                {/* Footer: Paginação */}
+                <div className="bg-slate-800 p-4 border-t border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center text-sm text-slate-400">
+                        <span>Mostrar</span>
+                        <select 
+                            value={itemsPerPage} 
+                            onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                            className="mx-2 bg-slate-700 border border-slate-600 rounded px-2 py-1 focus:ring-sky-500"
+                        >
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                        <span>por página</span>
+                        <span className="ml-4 border-l border-slate-600 pl-4">
+                            Total: {totalItems} registro(s)
+                        </span>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                        <button 
+                            onClick={() => handlePageChange(currentPage - 1)} 
+                            disabled={currentPage === 1}
+                            className="p-2 bg-slate-700 rounded hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ArrowLeftIcon className="w-4 h-4 text-white" />
+                        </button>
+                        <span className="text-sm text-white font-medium px-2">
+                            Página {currentPage} de {totalPages || 1}
+                        </span>
+                        <button 
+                            onClick={() => handlePageChange(currentPage + 1)} 
+                            disabled={currentPage === totalPages || totalPages === 0}
+                            className="p-2 bg-slate-700 rounded hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ArrowRightIcon className="w-4 h-4 text-white" />
+                        </button>
+                    </div>
+                </div>
+                
                  {filteredAndSortedCargas.length === 0 && (
-                    <div className="text-center p-8 text-slate-400">
+                    <div className="text-center p-8 text-slate-400 border-t border-slate-700">
                         Nenhuma carga encontrada. Tente ajustar sua busca ou importe novas cargas.
                     </div>
                  )}

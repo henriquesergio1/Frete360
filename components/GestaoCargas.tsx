@@ -234,7 +234,7 @@ const CargaModal: React.FC<{
 
 
 export const GestaoCargas: React.FC = () => {
-    const { cargas, addCarga, updateCarga, deleteCarga } = useContext(DataContext);
+    const { cargas, addCarga, updateCarga, deleteCarga, veiculos, lancamentos } = useContext(DataContext);
     
     // Filtros e Busca
     const [searchTerm, setSearchTerm] = useState('');
@@ -255,6 +255,15 @@ export const GestaoCargas: React.FC = () => {
     // Ordenação
     const [sortConfig, setSortConfig] = useState<{ key: keyof Carga; direction: 'ascending' | 'descending' } | null>({ key: 'DataCTE', direction: 'descending' });
     
+    // Calcular IDs de cargas já lançadas (para bloqueio e tag)
+    const lancadasIds = useMemo(() => {
+        const ids = new Set<number>();
+        lancamentos
+            .filter(l => !l.Excluido) // Apenas lançamentos ativos
+            .forEach(l => l.Cargas.forEach(c => ids.add(c.ID_Carga)));
+        return ids;
+    }, [lancamentos]);
+
     // Resetar página ao mudar filtros
     useEffect(() => {
         setCurrentPage(1);
@@ -494,6 +503,11 @@ export const GestaoCargas: React.FC = () => {
                                 
                                 const rawDate = String(carga.DataCTE).split('T')[0];
                                 const displayDate = new Date(rawDate + 'T00:00:00').toLocaleDateString('pt-BR');
+                                
+                                // Verifica se a carga está vinculada a um lançamento
+                                const isLancada = lancadasIds.has(carga.ID_Carga);
+                                // Encontra informações do veículo para exibir a placa
+                                const veiculoEncontrado = veiculos.find(v => v.COD_Veiculo === carga.COD_Veiculo);
 
                                 return (
                                 <tr key={carga.ID_Carga} className={rowClasses}>
@@ -501,6 +515,11 @@ export const GestaoCargas: React.FC = () => {
                                         <div className="flex items-center gap-3">
                                             <span>{carga.NumeroCarga}</span>
                                             <OrigemTag origem={carga.Origem} />
+                                            {isLancada && (
+                                                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                                    Lançada
+                                                </span>
+                                            )}
                                             {carga.MotivoAlteracao && !showOnlyExcluded && (
                                                 <span title={`Última alteração: ${carga.MotivoAlteracao}`} className="text-xs text-yellow-500 cursor-help border border-yellow-500/50 rounded px-1">Editado</span>
                                             )}
@@ -509,7 +528,15 @@ export const GestaoCargas: React.FC = () => {
                                     <td className="p-4">{carga.Cidade}</td>
                                     <td className="p-4">{displayDate}</td>
                                     <td className="p-4">{carga.ValorCTE.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                    <td className="p-4 font-mono text-xs">{carga.COD_Veiculo}</td>
+                                    <td className="p-4 font-mono text-xs">
+                                        {veiculoEncontrado ? (
+                                            <span title={`Motorista: ${veiculoEncontrado.Motorista}`}>
+                                                {carga.COD_Veiculo} <span className="text-slate-500 mx-1">|</span> {veiculoEncontrado.Placa}
+                                            </span>
+                                        ) : (
+                                            carga.COD_Veiculo
+                                        )}
+                                    </td>
                                     {showOnlyExcluded && (
                                         <td className="p-4">
                                             <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-500/20 text-red-300">
@@ -519,10 +546,20 @@ export const GestaoCargas: React.FC = () => {
                                     )}
                                     <td className="p-4 text-right">
                                         <div className="flex justify-end items-center gap-4">
-                                            <button onClick={() => handleOpenModalForEdit(carga)} disabled={showOnlyExcluded} className="text-sky-400 hover:text-sky-300 disabled:text-slate-600 disabled:cursor-not-allowed">
+                                            <button 
+                                                onClick={() => handleOpenModalForEdit(carga)} 
+                                                disabled={showOnlyExcluded || isLancada} 
+                                                title={isLancada ? "Esta carga já pertence a um lançamento. Edite o lançamento para liberá-la." : "Editar Carga"}
+                                                className="text-sky-400 hover:text-sky-300 disabled:text-slate-600 disabled:cursor-not-allowed"
+                                            >
                                                 <PencilIcon className="w-5 h-5" />
                                             </button>
-                                            <button onClick={() => handleDeleteClick(carga)} disabled={showOnlyExcluded} className="text-red-400 hover:text-red-300 disabled:text-slate-600 disabled:cursor-not-allowed">
+                                            <button 
+                                                onClick={() => handleDeleteClick(carga)} 
+                                                disabled={showOnlyExcluded || isLancada} 
+                                                title={isLancada ? "Esta carga já pertence a um lançamento. Exclua o lançamento para liberá-la." : "Excluir Carga"}
+                                                className="text-red-400 hover:text-red-300 disabled:text-slate-600 disabled:cursor-not-allowed"
+                                            >
                                                 <TrashIcon className="w-5 h-5" />
                                             </button>
                                         </div>

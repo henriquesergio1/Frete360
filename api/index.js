@@ -328,13 +328,18 @@ app.post('/cargas-erp/check', authenticateToken, async (req, res) => {
         const { rows: erpRows } = await executeQuery(configErp, q, [{name:'i',type:TYPES.Date,value:sIni}, {name:'f',type:TYPES.Date,value:sFim}]);
         if (erpRows.length === 0) return res.json({ message: 'Nada novo.', newCargas: [], deletedCargas: [], missingVehicles: [] });
         
-        // Lógica de agregação e verificação simplificada para caber no bloco (mas completa)
         const agg = new Map();
         erpRows.forEach(r => {
+            // CORREÇÃO CRÍTICA: Ignorar registros sem veículo definido (NULL)
+            if (!r.COD_VEICULO) return;
+            const codRaw = String(r.COD_VEICULO).trim().toUpperCase();
+            if (codRaw === 'NULL' || codRaw === '') return;
+
             const key = `${r.CARGA}|${r.CIDADE}`;
-            const obj = { NumeroCarga: r.CARGA, COD_VEICULO: String(r.COD_VEICULO).trim().toUpperCase(), DataCTE: r['DATA CTE'], ValorCTE: r['VALOR CTE'], Cidade: r.CIDADE };
+            const obj = { NumeroCarga: r.CARGA, COD_VEICULO: codRaw, DataCTE: r['DATA CTE'], ValorCTE: r['VALOR CTE'], Cidade: r.CIDADE };
             if (agg.has(key)) agg.get(key).ValorCTE += obj.ValorCTE; else agg.set(key, obj);
         });
+        
         const { rows: localC } = await executeQuery(configOdin, "SELECT NumeroCarga, Cidade, Excluido, MotivoExclusao FROM CargasManuais WHERE Origem='ERP'");
         const localMap = new Map(localC.map(c => [`${c.NumeroCarga}|${c.Cidade}`, normalizeKeys(c)]));
         const { rows: vs } = await executeQuery(configOdin, 'SELECT COD_Veiculo FROM Veiculos');
@@ -342,12 +347,16 @@ app.post('/cargas-erp/check', authenticateToken, async (req, res) => {
         
         const newC = [], delC = [], missingV = new Set();
         for (const c of agg.values()) {
-            if (!c.COD_VEICULO || !vSet.has(c.COD_VEICULO)) { missingV.add(c.COD_VEICULO); continue; }
+            // Proteção adicional para o loop de verificação
+            if (!c.COD_VEICULO || c.COD_VEICULO === 'NULL') continue;
+
+            if (!vSet.has(c.COD_VEICULO)) { missingV.add(c.COD_VEICULO); continue; }
+            
             const key = `${c.NumeroCarga}|${c.Cidade}`;
             if (localMap.has(key)) {
                 const l = localMap.get(key);
                 if (l.Excluido) delC.push({ erp: c, local: l, motivoExclusao: l.MotivoExclusao, selected: false });
-            } else newC.push({ ...c, KM: 0 }); // KM seria buscado dos params
+            } else newC.push({ ...c, KM: 0 }); 
         }
         res.json({ newCargas: newC, deletedCargas: delC, missingVehicles: Array.from(missingV), message: 'Check OK' });
     } catch (e) { res.status(500).json({ message: e.message }); }

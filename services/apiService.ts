@@ -41,13 +41,16 @@ export const getCurrentMode = () => USE_MOCK ? 'MOCK' : 'API';
 const getToken = () => localStorage.getItem('AUTH_TOKEN');
 
 const handleResponse = async (response: Response) => {
-    if (response.status === 401) {
-        console.warn('[API] Sessão expirada (401). Limpando dados e recarregando.');
+    // 401: Não autorizado (Token ausente/expirado)
+    // 403: Proibido (Token inválido ou sem permissão)
+    if (response.status === 401 || response.status === 403) {
+        console.warn(`[API] Erro de Autenticação (${response.status}). Limpando sessão e recarregando.`);
         localStorage.removeItem('AUTH_TOKEN');
         localStorage.removeItem('AUTH_USER');
         window.location.reload();
-        throw new Error('Sessão expirada. Por favor, faça login novamente.');
+        throw new Error('Sessão expirada ou inválida. Por favor, faça login novamente.');
     }
+    
     if (!response.ok) {
         let errorMessage = response.statusText;
         try {
@@ -56,8 +59,15 @@ const handleResponse = async (response: Response) => {
         } catch (e) {}
         throw new Error(`Erro na API (${response.status}): ${errorMessage}`);
     }
+    
     if (response.status === 204) return null;
-    return response.json();
+    
+    try {
+        return await response.json();
+    } catch (e) {
+        console.error('[API] Erro ao processar JSON:', e);
+        throw new Error('Resposta inválida do servidor (JSON malformado).');
+    }
 };
 
 const apiRequest = async (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', body?: any) => {
@@ -95,7 +105,7 @@ const apiGet = async (endpoint: string) => {
     const url = `${cleanUrl}/${cleanEndpoint}${separator}${cacheBuster}`;
 
     const headers: Record<string, string> = {
-        'Content-Type': 'application/json', // Explicitamente JSON mesmo para GET
+        'Content-Type': 'application/json',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
@@ -109,8 +119,11 @@ const apiGet = async (endpoint: string) => {
     }
 
     try {
+        console.debug(`[API GET] Fetching: ${url}`);
         const response = await fetch(url, { headers, cache: 'no-store' });
-        return handleResponse(response);
+        const data = await handleResponse(response);
+        console.debug(`[API GET] Success ${endpoint}:`, Array.isArray(data) ? `${data.length} itens` : 'Objeto recebido');
+        return data;
     } catch (error: any) {
         console.error(`[API ERROR] Falha ao buscar dados de ${url}:`, error);
         throw error;

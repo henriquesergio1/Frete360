@@ -81,17 +81,18 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
                 api.getLancamentos(),
             ]);
 
-            // Verificação defensiva e logs
-            if (!veiculosData) console.warn('[DataContext] Veículos vieram vazios/nulos');
-            if (!cargasManuaisData) console.warn('[DataContext] Cargas vieram vazias/nulas');
+            // LOGS DE DIAGNÓSTICO
+            console.log('[DataContext] Veículos carregados:', veiculosData ? veiculosData.length : 'NULL');
+            console.log('[DataContext] Cargas carregadas:', cargasManuaisData ? cargasManuaisData.length : 'NULL');
+            console.log('[DataContext] Parâmetros Valores:', pValoresData ? pValoresData.length : 'NULL');
 
-            setVeiculos(veiculosData || []);
-            setParametrosValores(pValoresData || []);
-            setParametrosTaxas(pTaxasData || []);
-            setCargas(cargasManuaisData || []);
-            setLancamentos(lancamentosData || []);
+            // Proteção contra null/undefined e atualização de estado
+            setVeiculos(Array.isArray(veiculosData) ? veiculosData : []);
+            setParametrosValores(Array.isArray(pValoresData) ? pValoresData : []);
+            setParametrosTaxas(Array.isArray(pTaxasData) ? pTaxasData : []);
+            setCargas(Array.isArray(cargasManuaisData) ? cargasManuaisData : []);
+            setLancamentos(Array.isArray(lancamentosData) ? lancamentosData : []);
             
-            console.log(`[DataContext] Dados carregados. Veiculos: ${veiculosData?.length || 0}, Cargas: ${cargasManuaisData?.length || 0}`);
         } catch (err: any) {
             console.error("Erro crítico ao carregar dados:", err);
             const errorMessage = process.env.API_MODE === 'api' 

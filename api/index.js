@@ -102,7 +102,14 @@ const authenticateToken = (req, res, next) => {
 };
 
 const app = express();
-app.use(cors());
+
+// CORS Explícito para garantir que o Header Authorization passe
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -192,15 +199,14 @@ app.put('/usuarios/:id', authenticateToken, async (req, res) => {
 // VEÍCULOS
 app.get('/veiculos', authenticateToken, async (req, res) => {
     try { 
-        // SELEÇÃO EXPLÍCITA PARA GARANTIR O NOME DAS COLUNAS (RESOLVE PROBLEMA DE DADOS SUMINDO)
-        const query = 'SELECT ID_Veiculo, COD_Veiculo, Placa, TipoVeiculo, Motorista, CapacidadeKG, Ativo, Origem, UsuarioCriacao, UsuarioAlteracao FROM Veiculos ORDER BY Ativo DESC, Placa ASC';
+        // USO DE 'AS' (ALIASES) PARA FORÇAR O NOME CORRETO DAS COLUNAS JSON
+        const query = 'SELECT ID_Veiculo AS ID_Veiculo, COD_Veiculo AS COD_Veiculo, Placa AS Placa, TipoVeiculo AS TipoVeiculo, Motorista AS Motorista, CapacidadeKG AS CapacidadeKG, Ativo AS Ativo, Origem AS Origem, UsuarioCriacao AS UsuarioCriacao, UsuarioAlteracao AS UsuarioAlteracao FROM Veiculos ORDER BY Ativo DESC, Placa ASC';
         console.log('[DEBUG API] Solicitando Veículos...');
         const { rows } = await executeQuery(configOdin, query); 
         console.log(`[DEBUG API] Veículos encontrados: ${rows.length}`);
         
+        // Mantemos normalizeKeys como backup, mas o alias SQL é mais forte
         const normalizedRows = rows.map(normalizeKeys);
-        if (normalizedRows.length > 0) console.log('[DEBUG API] Exemplo Normalizado:', normalizedRows[0]);
-
         res.json(normalizedRows); 
     } catch (error) { 
         console.error('[DEBUG API] Erro ao buscar veículos:', error);
@@ -274,8 +280,8 @@ app.post('/veiculos-erp/sync', authenticateToken, async (req, res) => {
 // CARGAS
 app.get('/cargas-manuais', authenticateToken, async (req, res) => {
     try { 
-        // SELEÇÃO EXPLÍCITA PARA GARANTIR O NOME DAS COLUNAS
-        const query = 'SELECT ID_Carga, NumeroCarga, Cidade, ValorCTE, DataCTE, KM, COD_VEICULO, Origem, Excluido, MotivoExclusao, MotivoAlteracao, UsuarioCriacao, UsuarioAlteracao FROM CargasManuais ORDER BY DataCTE DESC';
+        // USO DE 'AS' (ALIASES) PARA FORÇAR O NOME CORRETO DAS COLUNAS
+        const query = 'SELECT ID_Carga AS ID_Carga, NumeroCarga AS NumeroCarga, Cidade AS Cidade, ValorCTE AS ValorCTE, DataCTE AS DataCTE, KM AS KM, COD_VEICULO AS COD_VEICULO, Origem AS Origem, Excluido AS Excluido, MotivoExclusao AS MotivoExclusao, MotivoAlteracao AS MotivoAlteracao, UsuarioCriacao AS UsuarioCriacao, UsuarioAlteracao AS UsuarioAlteracao FROM CargasManuais ORDER BY DataCTE DESC';
         const { rows } = await executeQuery(configOdin, query); 
         res.json(rows.map(normalizeKeys)); 
     } catch (e) { res.status(500).json({ message: e.message }); }

@@ -1,5 +1,3 @@
-
-
 import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento, VehicleCheckResult, VehicleConflict, CargaCheckResult, CargaReactivation, Usuario, AuthResponse } from '../types.ts';
 import * as mockApi from '../api/mockData.ts';
 import Papa from 'papaparse';
@@ -44,9 +42,11 @@ const getToken = () => localStorage.getItem('AUTH_TOKEN');
 
 const handleResponse = async (response: Response) => {
     if (response.status === 401) {
-        // Se não autorizado (token inválido/expirado), o contexto de Auth irá lidar com isso
-        // ao tentar usar o serviço e receber erro, ou podemos forçar logout aqui (mas evitar acoplamento direto)
-        throw new Error('Não autorizado. Por favor, faça login novamente.');
+        // Se não autorizado, limpa dados locais e força recarga para cair no Login
+        localStorage.removeItem('AUTH_TOKEN');
+        localStorage.removeItem('AUTH_USER');
+        window.location.reload();
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
     }
     if (!response.ok) {
         let errorMessage = response.statusText;
@@ -69,7 +69,13 @@ const apiRequest = async (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', b
     const token = getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const options: RequestInit = { method, headers, body: body ? JSON.stringify(body) : undefined };
+    // Adicionado cache: 'no-store' para evitar cache de POST/PUT em alguns navegadores/proxies
+    const options: RequestInit = { 
+        method, 
+        headers, 
+        body: body ? JSON.stringify(body) : undefined,
+        cache: 'no-store' 
+    };
     
     try {
         const response = await fetch(url, options);
@@ -90,7 +96,8 @@ const apiGet = async (endpoint: string) => {
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     try {
-        const response = await fetch(url, { headers });
+        // CRÍTICO: cache: 'no-store' impede que o navegador use cache antigo (vazio ou 401)
+        const response = await fetch(url, { headers, cache: 'no-store' });
         return handleResponse(response);
     } catch (error: any) {
         console.error(`[API ERROR] Falha ao buscar dados de ${url}:`, error);

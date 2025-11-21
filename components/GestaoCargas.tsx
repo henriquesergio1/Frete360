@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { Carga } from '../types.ts';
 import { DataContext } from '../context/DataContext.tsx';
@@ -95,11 +96,11 @@ const CargaModal: React.FC<{
 
     // Automatically find and set KM when Cidade or Veiculo changes
     useEffect(() => {
-        if (!formData?.Cidade || !formData.COD_VEICULO) {
+        if (!formData?.Cidade || !formData.COD_Veiculo) {
             return;
         }
 
-        const veiculo = veiculos.find(v => v.COD_Veiculo === formData.COD_VEICULO);
+        const veiculo = veiculos.find(v => v.COD_Veiculo === formData.COD_Veiculo);
         if (!veiculo) {
             return;
         }
@@ -118,7 +119,7 @@ const CargaModal: React.FC<{
             return prev;
         });
 
-    }, [formData?.Cidade, formData?.COD_VEICULO, veiculos, parametrosValores]);
+    }, [formData?.Cidade, formData?.COD_Veiculo, veiculos, parametrosValores]);
 
 
     if (!isOpen || !formData) return null;
@@ -135,7 +136,7 @@ const CargaModal: React.FC<{
             KM: parseFloat(String(formData.KM)) || 0,
         };
 
-        if (!processedData.NumeroCarga || !processedData.Cidade || !processedData.COD_VEICULO) {
+        if (!processedData.NumeroCarga || !processedData.Cidade || !processedData.COD_Veiculo) {
             alert("Por favor, preencha todos os campos obrigatórios: Nº Carga, Cidade e Veículo.");
             return;
         }
@@ -186,8 +187,8 @@ const CargaModal: React.FC<{
                             <input type="text" name="NumeroCarga" id="NumeroCarga" value={formData.NumeroCarga} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500" />
                         </div>
                         <div>
-                           <label htmlFor="COD_VEICULO" className="block text-sm font-medium text-slate-300 mb-1">Veículo</label>
-                           <select name="COD_VEICULO" id="COD_VEICULO" value={formData.COD_VEICULO} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500">
+                           <label htmlFor="COD_Veiculo" className="block text-sm font-medium text-slate-300 mb-1">Veículo</label>
+                           <select name="COD_Veiculo" id="COD_Veiculo" value={formData.COD_Veiculo} onChange={handleChange} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500">
                                 <option value="">Selecione um veículo</option>
                                 {veiculos.filter(v => v.Ativo).map(v => (
                                     <option key={v.COD_Veiculo} value={v.COD_Veiculo}>{v.COD_Veiculo} - {v.Placa}</option>
@@ -268,7 +269,7 @@ export const GestaoCargas: React.FC = () => {
              result = result.filter(c =>
                 c.NumeroCarga.toLowerCase().includes(lowerTerm) ||
                 c.Cidade.toLowerCase().includes(lowerTerm) ||
-                c.COD_VEICULO.toLowerCase().includes(lowerTerm)
+                c.COD_Veiculo.toLowerCase().includes(lowerTerm)
             );
         }
 
@@ -332,7 +333,7 @@ export const GestaoCargas: React.FC = () => {
             ValorCTE: 0,
             DataCTE: new Date().toISOString().split('T')[0],
             KM: 0,
-            COD_VEICULO: '',
+            COD_Veiculo: '',
             Origem: 'Manual',
         });
         setIsModalOpen(true);
@@ -478,7 +479,7 @@ export const GestaoCargas: React.FC = () => {
                                 <th scope="col" className="p-4 cursor-pointer" onClick={() => requestSort('Cidade')}>Cidade {getSortIcon('Cidade')}</th>
                                 <th scope="col" className="p-4 cursor-pointer" onClick={() => requestSort('DataCTE')}>Data CTE {getSortIcon('DataCTE')}</th>
                                 <th scope="col" className="p-4 cursor-pointer" onClick={() => requestSort('ValorCTE')}>Valor CTE {getSortIcon('ValorCTE')}</th>
-                                <th scope="col" className="p-4 cursor-pointer" onClick={() => requestSort('COD_VEICULO')}>Veículo {getSortIcon('COD_VEICULO')}</th>
+                                <th scope="col" className="p-4 cursor-pointer" onClick={() => requestSort('COD_Veiculo')}>Veículo {getSortIcon('COD_Veiculo')}</th>
                                 {showOnlyExcluded && (
                                     <th scope="col" className="p-4">Motivo Exclusão</th>
                                 )}
@@ -508,7 +509,7 @@ export const GestaoCargas: React.FC = () => {
                                     <td className="p-4">{carga.Cidade}</td>
                                     <td className="p-4">{displayDate}</td>
                                     <td className="p-4">{carga.ValorCTE.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                    <td className="p-4 font-mono text-xs">{carga.COD_VEICULO}</td>
+                                    <td className="p-4 font-mono text-xs">{carga.COD_Veiculo}</td>
                                     {showOnlyExcluded && (
                                         <td className="p-4">
                                             <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-500/20 text-red-300">

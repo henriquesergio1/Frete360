@@ -293,7 +293,7 @@ app.post('/cargas-manuais', authenticateToken, async (req, res) => {
     const p = [
         {name:'n',type:TYPES.NVarChar,value:String(c.NumeroCarga)}, {name:'c',type:TYPES.NVarChar,value:c.Cidade}, 
         {name:'v',type:TYPES.Decimal,value:c.ValorCTE,options:{precision:18,scale:2}}, {name:'d',type:TYPES.Date,value:c.DataCTE}, 
-        {name:'k',type:TYPES.Int,value:c.KM}, {name:'cv',type:TYPES.NVarChar,value:c.COD_VEICULO}, 
+        {name:'k',type:TYPES.Int,value:c.KM}, {name:'cv',type:TYPES.NVarChar,value:c.COD_Veiculo||c.COD_VEICULO}, 
         {name:'o',type:TYPES.NVarChar,value:c.Origem||'Manual'}, {name:'u',type:TYPES.NVarChar,value:u.usuario}
     ];
     try { const { rows } = await executeQuery(configOdin, q, p); res.status(201).json(normalizeKeys(rows[0])); } catch (e) { res.status(500).json({ message: e.message }); }
@@ -313,7 +313,7 @@ app.put('/cargas-manuais/:id', authenticateToken, async (req, res) => {
             {name:'id',type:TYPES.Int,value:req.params.id}, {name:'n',type:TYPES.NVarChar,value:String(c.NumeroCarga)}, 
             {name:'c',type:TYPES.NVarChar,value:c.Cidade}, {name:'v',type:TYPES.Decimal,value:c.ValorCTE,options:{precision:18,scale:2}}, 
             {name:'d',type:TYPES.Date,value:c.DataCTE}, {name:'k',type:TYPES.Int,value:c.KM}, 
-            {name:'cv',type:TYPES.NVarChar,value:c.COD_VEICULO}, {name:'m',type:TYPES.NVarChar,value:m},
+            {name:'cv',type:TYPES.NVarChar,value:c.COD_Veiculo||c.COD_VEICULO}, {name:'m',type:TYPES.NVarChar,value:m},
             {name:'u',type:TYPES.NVarChar,value:user.usuario}
         ];
     }
@@ -336,7 +336,7 @@ app.post('/cargas-erp/check', authenticateToken, async (req, res) => {
             if (codRaw === 'NULL' || codRaw === '') return;
 
             const key = `${r.CARGA}|${r.CIDADE}`;
-            const obj = { NumeroCarga: r.CARGA, COD_VEICULO: codRaw, DataCTE: r['DATA CTE'], ValorCTE: r['VALOR CTE'], Cidade: r.CIDADE };
+            const obj = { NumeroCarga: r.CARGA, COD_Veiculo: codRaw, DataCTE: r['DATA CTE'], ValorCTE: r['VALOR CTE'], Cidade: r.CIDADE };
             if (agg.has(key)) agg.get(key).ValorCTE += obj.ValorCTE; else agg.set(key, obj);
         });
         
@@ -348,9 +348,9 @@ app.post('/cargas-erp/check', authenticateToken, async (req, res) => {
         const newC = [], delC = [], missingV = new Set();
         for (const c of agg.values()) {
             // Proteção adicional para o loop de verificação
-            if (!c.COD_VEICULO || c.COD_VEICULO === 'NULL') continue;
+            if (!c.COD_Veiculo || c.COD_Veiculo === 'NULL') continue;
 
-            if (!vSet.has(c.COD_VEICULO)) { missingV.add(c.COD_VEICULO); continue; }
+            if (!vSet.has(c.COD_Veiculo)) { missingV.add(c.COD_Veiculo); continue; }
             
             const key = `${c.NumeroCarga}|${c.Cidade}`;
             if (localMap.has(key)) {
@@ -380,7 +380,7 @@ app.post('/cargas-erp/sync', authenticateToken, async (req, res) => {
                         p.push(
                             {name:`n${idx}`,type:TYPES.NVarChar,value:String(c.NumeroCarga)},{name:`c${idx}`,type:TYPES.NVarChar,value:c.Cidade},
                             {name:`v${idx}`,type:TYPES.Decimal,value:c.ValorCTE,options:{precision:18,scale:2}},{name:`d${idx}`,type:TYPES.Date,value:c.DataCTE},
-                            {name:`k${idx}`,type:TYPES.Int,value:c.KM},{name:`cv${idx}`,type:TYPES.NVarChar,value:c.COD_VEICULO},
+                            {name:`k${idx}`,type:TYPES.Int,value:c.KM},{name:`cv${idx}`,type:TYPES.NVarChar,value:c.COD_Veiculo||c.COD_VEICULO},
                             {name:`u${idx}`,type:TYPES.NVarChar,value:user.usuario}
                         );
                     });
@@ -409,7 +409,7 @@ app.get('/lancamentos', authenticateToken, async (req, res) => {
         const { rows: ls } = await executeQuery(configOdin, 'SELECT * FROM Lancamentos ORDER BY DataCriacao DESC');
         for (const l of ls) {
             const { rows: cs } = await executeQuery(configOdin, 'SELECT * FROM Lancamento_Cargas WHERE ID_Lancamento=@id', [{name:'id',type:TYPES.Int,value:l.ID_Lancamento}]);
-            l.Cargas = cs.map(c => ({ ID_Carga: c.ID_Carga_Origem, NumeroCarga: c.NumeroCarga, Cidade: c.Cidade, ValorCTE: c.ValorCTE, DataCTE: c.DataCTE.toISOString().split('T')[0], KM: c.KM, COD_VEICULO: c.COD_VEICULO }));
+            l.Cargas = cs.map(c => ({ ID_Carga: c.ID_Carga_Origem, NumeroCarga: c.NumeroCarga, Cidade: c.Cidade, ValorCTE: c.ValorCTE, DataCTE: c.DataCTE.toISOString().split('T')[0], KM: c.KM, COD_Veiculo: c.COD_VEICULO }));
             l.Calculo = { CidadeBase: l.CidadeBase, KMBase: l.KMBase, ValorBase: l.ValorBase, Pedagio: l.Pedagio, Balsa: l.Balsa, Ambiental: l.Ambiental, Chapa: l.Chapa, Outras: l.Outras, ValorTotal: l.ValorTotal };
         }
         res.json(ls); // Lancamentos geralmente retornam camelCase do driver, se der problema, aplicar normalize tb
@@ -450,7 +450,7 @@ app.post('/lancamentos', authenticateToken, (req, res) => {
                          const q = `INSERT INTO Lancamento_Cargas (ID_Lancamento, ID_Carga_Origem, NumeroCarga, Cidade, ValorCTE, DataCTE, KM, COD_VEICULO) VALUES (@idl, @idc, @n, @ci, @v, @d, @k, @cv)`;
                          const r = new Request(q, e => e?rej(e):res());
                          r.addParameter('idl',TYPES.Int,newId); r.addParameter('idc',TYPES.Int,c.ID_Carga); r.addParameter('n',TYPES.NVarChar,String(c.NumeroCarga)); r.addParameter('ci',TYPES.NVarChar,c.Cidade);
-                         r.addParameter('v',TYPES.Decimal,c.ValorCTE,{precision:18,scale:2}); r.addParameter('d',TYPES.Date,c.DataCTE); r.addParameter('k',TYPES.Int,c.KM); r.addParameter('cv',TYPES.NVarChar,c.COD_VEICULO);
+                         r.addParameter('v',TYPES.Decimal,c.ValorCTE,{precision:18,scale:2}); r.addParameter('d',TYPES.Date,c.DataCTE); r.addParameter('k',TYPES.Int,c.KM); r.addParameter('cv',TYPES.NVarChar,c.COD_Veiculo||c.COD_VEICULO);
                          conn.execSql(r);
                      });
                 }

@@ -1,3 +1,5 @@
+
+
 import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento, VehicleCheckResult, VehicleConflict, CargaCheckResult, CargaReactivation, Usuario, AuthResponse } from '../types.ts';
 import * as mockApi from '../api/mockData.ts';
 import Papa from 'papaparse';
@@ -170,7 +172,7 @@ const RealService = {
             }
             if (params.veiculoCod) {
                 const targetCod = String(params.veiculoCod).trim().toUpperCase();
-                cargas = cargas.filter(c => String(c.COD_VEICULO).trim().toUpperCase() === targetCod); 
+                cargas = cargas.filter(c => String(c.COD_Veiculo).trim().toUpperCase() === targetCod); 
             }
         }
         return cargas.filter(c => !c.Excluido);

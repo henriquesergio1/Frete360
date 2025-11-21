@@ -1,4 +1,5 @@
 
+
 import React, { useState, useContext, ChangeEvent, useEffect } from 'react';
 import { DataContext } from '../context/DataContext.tsx';
 import * as api from '../services/apiService.ts';
@@ -592,7 +593,7 @@ export const Importacao: React.FC = () => {
                      <CSVImportCard
                         title="Importar Cargas Manuais"
                         description="Carregue cargas que não estão no ERP."
-                        headers="NumeroCarga,Cidade,ValorCTE,DataCTE,COD_VEICULO"
+                        headers="NumeroCarga,Cidade,ValorCTE,DataCTE,COD_Veiculo"
                         importType="cargas"
                     />
                     <CSVImportCard

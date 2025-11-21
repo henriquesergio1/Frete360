@@ -40,10 +40,22 @@ export const getCurrentMode = () => USE_MOCK ? 'MOCK' : 'API';
 
 const getToken = () => localStorage.getItem('AUTH_TOKEN');
 
-const handleResponse = async (response: Response) => {
-    // 401: Não autorizado (Token ausente/expirado)
+const handleResponse = async (response: Response, isLoginRequest: boolean = false) => {
+    // 401: Não autorizado (Token ausente/expirado OU Credenciais Inválidas no Login)
     // 403: Proibido (Token inválido ou sem permissão)
     if (response.status === 401 || response.status === 403) {
+        
+        // CORREÇÃO CRÍTICA: Se o erro 401 vier da tentativa de login, 
+        // NÃO recarrega a página. Apenas lança o erro para o UI mostrar "Senha incorreta".
+        if (isLoginRequest) {
+            let errorMessage = 'Falha na autenticação.';
+            try {
+                const errorData = await response.json();
+                if (errorData && errorData.message) errorMessage = errorData.message;
+            } catch (e) {}
+            throw new Error(errorMessage);
+        }
+
         console.warn(`[API] Erro de Autenticação (${response.status}). Limpando sessão e recarregando.`);
         localStorage.removeItem('AUTH_TOKEN');
         localStorage.removeItem('AUTH_USER');
@@ -88,7 +100,9 @@ const apiRequest = async (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', b
     
     try {
         const response = await fetch(url, options);
-        return handleResponse(response);
+        // Passa true se o endpoint for login, para evitar loop de reload em caso de erro 401
+        const isLogin = cleanEndpoint === 'login';
+        return handleResponse(response, isLogin);
     } catch (error: any) {
         console.error(`[API ERROR] Falha ao conectar em ${url}:`, error);
         throw error; 
@@ -121,7 +135,8 @@ const apiGet = async (endpoint: string) => {
     try {
         console.debug(`[API GET] Fetching: ${url}`);
         const response = await fetch(url, { headers, cache: 'no-store' });
-        const data = await handleResponse(response);
+        // Requisições GET normais não são login, então passa false
+        const data = await handleResponse(response, false);
         console.debug(`[API GET] Success ${endpoint}:`, Array.isArray(data) ? `${data.length} itens` : 'Objeto recebido');
         return data;
     } catch (error: any) {
@@ -155,7 +170,7 @@ const RealService = {
             }
             if (params.veiculoCod) {
                 const targetCod = String(params.veiculoCod).trim().toUpperCase();
-                cargas = cargas.filter(c => String(c.COD_VEICULO).trim().toUpperCase() === targetCod);
+                cargas = cargas.filter(c => String(c.COD_VEICULO).trim().toUpperCase() === targetCod); 
             }
         }
         return cargas.filter(c => !c.Excluido);

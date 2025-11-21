@@ -4,7 +4,7 @@
 
 ![Version](https://img.shields.io/badge/version-1.2.21-blue.svg?style=for-the-badge)
 ![Stack](https://img.shields.io/badge/stack-React%20%7C%20Node.js%20%7C%20SQL%20Server-sky.svg?style=for-the-badge)
-![Status](https://img.shields.io/badge/status-Production%20Ready-green.svg?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-Private-red.svg?style=for-the-badge)
 
 ---
 
@@ -69,8 +69,8 @@ Pré-requisitos: **Docker** e **Docker Compose**.
 
 1.  **Clone o repositório**
     ```bash
-    git clone https://github.com/seu-usuario/frete360.git
-    cd frete360
+    git clone https://github.com/henriquesergio1/Frete360.git
+    cd Frete360
     ```
 
 2.  **Configure o Ambiente**
@@ -111,8 +111,8 @@ frete360/
 
 **Sérgio Oliveira**
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com) 
-[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/henrique-sergio/) 
+[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/henriquesergio1)
 
 *Construindo soluções que movem o mundo.*
 
@@ -120,7 +120,9 @@ frete360/
 
 ---
 
-## 📝 Licença
+## 🔒 Licença
 
-Este projeto está sob a licença [MIT](./LICENSE). Sinta-se livre para usar, modificar e distribuir.
+Este projeto é software proprietário.
+**Todos os direitos reservados.**
 
+A cópia, modificação, distribuição ou uso não autorizado deste software, no todo ou em parte, é estritamente proibido.

@@ -2,10 +2,22 @@
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { DataContext } from '../context/DataContext.tsx';
 import { Lancamento, Veiculo } from '../types.ts';
-import { PencilIcon, ChevronDownIcon, ChevronUpIcon, TrashIcon, ExclamationIcon, ChartBarIcon, DocumentReportIcon, TruckIcon } from './icons.tsx';
+import { PencilIcon, ChevronDownIcon, ChevronUpIcon, TrashIcon, ExclamationIcon, ChartBarIcon, DocumentReportIcon, TruckIcon, PrinterIcon, XCircleIcon } from './icons.tsx';
 
 interface RelatoriosProps {
     setView: (view: 'lancamento') => void;
+}
+
+interface AnalyticalData {
+    veiculoId: number;
+    veiculo: Veiculo | undefined;
+    count: number;
+    receitaTotal: number;
+    custoTotal: number;
+    totalPedagio: number;
+    totalChapa: number;
+    totalOutras: number; // Balsa + Ambiental + Outras
+    lancamentos: Lancamento[];
 }
 
 const initialFilters = {
@@ -70,6 +82,148 @@ const DeletionModal: React.FC<{
     );
 };
 
+// --- Recibo/Termo de Aceite para Impressão ---
+const ReciboPagamento: React.FC<{
+    data: AnalyticalData;
+    periodo: { start: string, end: string };
+    onClose: () => void;
+}> = ({ data, periodo, onClose }) => {
+    const { systemConfig } = useContext(DataContext);
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const formatDate = (dateStr: string) => new Date(dateStr.split('T')[0] + 'T00:00:00').toLocaleDateString('pt-BR');
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-white text-black overflow-auto flex flex-col">
+            {/* Controles de Tela (Escondidos na Impressão) */}
+            <div className="bg-slate-800 p-4 flex justify-between items-center print:hidden sticky top-0 z-50 shadow-md">
+                <h2 className="text-white font-bold text-lg">Pré-visualização de Recibo</h2>
+                <div className="space-x-4">
+                    <button onClick={handlePrint} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded flex items-center inline-flex">
+                        <PrinterIcon className="w-5 h-5 mr-2"/> Imprimir
+                    </button>
+                    <button onClick={onClose} className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded flex items-center inline-flex">
+                        <XCircleIcon className="w-5 h-5 mr-2"/> Fechar
+                    </button>
+                </div>
+            </div>
+
+            {/* Área de Impressão */}
+            <div className="p-8 max-w-4xl mx-auto w-full flex-1 print:p-0 print:max-w-none">
+                <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end">
+                    <div>
+                        <h1 className="text-2xl font-bold uppercase">{systemConfig.companyName || 'Empresa de Transportes'}</h1>
+                        <p className="text-sm mt-1">Recibo de Pagamento de Frete / Termo de Aceite</p>
+                    </div>
+                    <div className="text-right text-sm">
+                        <p><strong>Data de Emissão:</strong> {new Date().toLocaleDateString('pt-BR')}</p>
+                        <p><strong>Período:</strong> {periodo.start ? formatDate(periodo.start) : 'Início'} a {periodo.end ? formatDate(periodo.end) : 'Presente'}</p>
+                    </div>
+                </div>
+
+                <div className="mb-6 bg-gray-100 p-4 rounded border border-gray-300 print:bg-transparent print:border-black">
+                    <h3 className="font-bold text-lg mb-2 border-b border-gray-300 pb-1">Dados do Prestador</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                        <p><strong>Motorista:</strong> {data.veiculo?.Motorista}</p>
+                        <p><strong>Veículo:</strong> {data.veiculo?.TipoVeiculo}</p>
+                        <p><strong>Placa:</strong> {data.veiculo?.Placa}</p>
+                        <p><strong>CPF/CNPJ:</strong> _______________________</p>
+                    </div>
+                </div>
+
+                <div className="mb-6">
+                    <h3 className="font-bold text-lg mb-2 border-b border-black pb-1">Detalhamento de Viagens</h3>
+                    <table className="w-full text-sm border-collapse">
+                        <thead>
+                            <tr className="border-b border-black text-left">
+                                <th className="py-2">Data</th>
+                                <th className="py-2">Rota / Cidades</th>
+                                <th className="py-2 text-center">Cargas</th>
+                                <th className="py-2 text-right">Valor Base</th>
+                                <th className="py-2 text-right">Adicionais*</th>
+                                <th className="py-2 text-right">Total Frete</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.lancamentos.map((lanc, idx) => {
+                                const uniqueCidades = [...new Set(lanc.Cargas.map(c => c.Cidade))].join(', ');
+                                const cargasIds = lanc.Cargas.map(c => c.NumeroCarga).join(', ');
+                                // Adicionais = Pedagio + Chapa + Outras (Balsa, Ambiental, Outras)
+                                const adicionais = lanc.Calculo.Pedagio + lanc.Calculo.Chapa + lanc.Calculo.Balsa + lanc.Calculo.Ambiental + lanc.Calculo.Outras;
+
+                                return (
+                                    <tr key={idx} className="border-b border-gray-300 print:border-gray-400">
+                                        <td className="py-2">{formatDate(lanc.DataFrete)}</td>
+                                        <td className="py-2">{uniqueCidades}</td>
+                                        <td className="py-2 text-center text-xs">{cargasIds}</td>
+                                        <td className="py-2 text-right">{formatCurrency(lanc.Calculo.ValorBase)}</td>
+                                        <td className="py-2 text-right">{formatCurrency(adicionais)}</td>
+                                        <td className="py-2 text-right font-bold">{formatCurrency(lanc.Calculo.ValorTotal)}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                    <p className="text-xs mt-1 text-gray-500">* Adicionais incluem: Pedágio, Chapa, Balsa, Taxa Ambiental e Outros.</p>
+                </div>
+
+                <div className="mb-8">
+                    <h3 className="font-bold text-lg mb-2 border-b border-black pb-1">Resumo Financeiro</h3>
+                    <div className="flex justify-end">
+                        <table className="w-1/2 text-sm border border-black">
+                            <tbody>
+                                <tr>
+                                    <td className="p-2 border-b border-gray-300">Total Frete Base</td>
+                                    <td className="p-2 text-right border-b border-gray-300 font-mono">{formatCurrency(data.lancamentos.reduce((acc, l) => acc + l.Calculo.ValorBase, 0))}</td>
+                                </tr>
+                                <tr>
+                                    <td className="p-2 border-b border-gray-300">Total Pedágio</td>
+                                    <td className="p-2 text-right border-b border-gray-300 font-mono">{formatCurrency(data.totalPedagio)}</td>
+                                </tr>
+                                <tr>
+                                    <td className="p-2 border-b border-gray-300">Total Chapa</td>
+                                    <td className="p-2 text-right border-b border-gray-300 font-mono">{formatCurrency(data.totalChapa)}</td>
+                                </tr>
+                                <tr>
+                                    <td className="p-2 border-b border-black">Outros Reembolsos</td>
+                                    <td className="p-2 text-right border-b border-black font-mono">{formatCurrency(data.totalOutras)}</td>
+                                </tr>
+                                <tr className="bg-gray-200 print:bg-gray-200">
+                                    <td className="p-3 font-bold text-base">VALOR TOTAL A PAGAR</td>
+                                    <td className="p-3 text-right font-bold text-base font-mono">{formatCurrency(data.custoTotal)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="mt-12 pt-4 border-t border-black">
+                    <p className="text-justify text-sm mb-12">
+                        Declaro para os devidos fins que prestei os serviços de transporte acima relacionados e recebi/receberei a importância líquida descrita neste demonstrativo, dando plena e geral quitação pelos serviços realizados no período.
+                    </p>
+                    
+                    <div className="flex justify-between mt-16 gap-10">
+                         <div className="text-center flex-1">
+                            <div className="border-t border-black w-full pt-2"></div>
+                            <p className="font-bold">{systemConfig.companyName}</p>
+                            <p className="text-xs">Assinatura Responsável</p>
+                        </div>
+                        <div className="text-center flex-1">
+                            <div className="border-t border-black w-full pt-2"></div>
+                            <p className="font-bold">{data.veiculo?.Motorista}</p>
+                            <p className="text-xs">Assinatura Motorista</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
     const { lancamentos, deleteLancamento, veiculos, setEditingLancamento } = useContext(DataContext);
     const [activeTab, setActiveTab] = useState<'geral' | 'analitico'>('geral');
@@ -81,6 +235,9 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
     const [lancamentoToDelete, setLancamentoToDelete] = useState<Lancamento | null>(null);
 
     const [filteredLancamentos, setFilteredLancamentos] = useState<Lancamento[]>([]);
+    
+    // Estado para Impressão
+    const [printData, setPrintData] = useState<AnalyticalData | null>(null);
 
     useEffect(() => {
         let result = lancamentos;
@@ -105,17 +262,7 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
 
     // --- Lógica de Agregação para o Relatório Analítico ---
     const analyticalData = useMemo(() => {
-        const grouped = new Map<number, {
-            veiculoId: number;
-            veiculo: Veiculo | undefined;
-            count: number;
-            receitaTotal: number;
-            custoTotal: number;
-            totalPedagio: number;
-            totalChapa: number;
-            totalOutras: number; // Balsa + Ambiental + Outras
-            lancamentos: Lancamento[];
-        }>();
+        const grouped = new Map<number, AnalyticalData>();
 
         filteredLancamentos.forEach(lancamento => {
             const vId = lancamento.ID_Veiculo;
@@ -205,6 +352,11 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
             handleCloseDeleteModal();
         }
     };
+    
+    const handlePrintClick = (e: React.MouseEvent, data: AnalyticalData) => {
+        e.stopPropagation();
+        setPrintData(data);
+    };
 
     const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -215,6 +367,15 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
                 onClose={handleCloseDeleteModal}
                 onConfirm={handleConfirmDelete}
             />
+            
+            {printData && (
+                <ReciboPagamento 
+                    data={printData} 
+                    periodo={{ start: filters.startDate, end: filters.endDate }}
+                    onClose={() => setPrintData(null)} 
+                />
+            )}
+
             <div>
                 <h2 className="text-2xl font-bold text-white mb-2">Relatórios Gerenciais</h2>
                 <p className="text-slate-400">Analise os lançamentos de frete e o desempenho financeiro da frota.</p>
@@ -410,6 +571,7 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
                                     <th className="p-4 text-right">Chapa</th>
                                     <th className="p-4 text-right" title="Balsa + Ambiental + Outras">Outras Taxas</th>
                                     <th className="p-4 text-right">Resultado</th>
+                                    <th className="p-4 text-center">Imprimir</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -438,10 +600,19 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
                                                 <td className={`p-4 text-right font-bold font-mono ${resultado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                                     {formatCurrency(resultado)}
                                                 </td>
+                                                <td className="p-4 text-center">
+                                                    <button 
+                                                        onClick={(e) => handlePrintClick(e, data)}
+                                                        className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-600" 
+                                                        title="Imprimir Recibo / Termo de Aceite"
+                                                    >
+                                                        <PrinterIcon className="w-5 h-5" />
+                                                    </button>
+                                                </td>
                                             </tr>
                                             {isExpanded && (
                                                 <tr className="bg-slate-900/30">
-                                                    <td colSpan={9} className="p-0">
+                                                    <td colSpan={10} className="p-0">
                                                         <div className="p-4 m-4 bg-slate-800/50 rounded-md border border-slate-700">
                                                             <h4 className="text-md font-semibold text-sky-400 mb-3 flex items-center">
                                                                 <TruckIcon className="w-5 h-5 mr-2"/> Detalhamento das Viagens - {data.veiculo?.Placa}
@@ -496,6 +667,7 @@ export const Relatorios: React.FC<RelatoriosProps> = ({ setView }) => {
                                     <td className="p-4 text-right">
                                         {formatCurrency(analyticalData.reduce((s, d) => s + (d.receitaTotal - d.custoTotal), 0))}
                                     </td>
+                                    <td></td>
                                 </tr>
                             </tfoot>
                         </table>

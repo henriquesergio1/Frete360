@@ -95,10 +95,15 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
             
         } catch (err: any) {
             console.error("Erro crítico ao carregar dados:", err);
-            const errorMessage = process.env.API_MODE === 'api' 
-                ? 'Falha ao conectar com o backend. Verifique se a API está em execução.' 
-                : 'Falha ao carregar dados. Verifique sua conexão.';
-            setError(`${errorMessage} Detalhe: ${err.message}`);
+            // Verificação segura de ambiente (NÃO USAR process.env aqui)
+            const isApiMode = window.__FRETE_MODO_MOCK__ === false;
+            let errorMessage = `Falha crítica no carregamento de dados: ${err.message}`;
+            
+            if (isApiMode && err.message && err.message.includes('Invalid column name')) {
+                errorMessage += " (ERRO DE BANCO: Parece que o banco de dados está desatualizado. Rode o script database_schema.txt).";
+            }
+
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }

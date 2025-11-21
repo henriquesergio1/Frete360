@@ -210,14 +210,34 @@ BEGIN ALTER TABLE ParametrosTaxas ADD UsuarioCriacao NVARCHAR(100); END;
 IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioAlteracao' AND Object_ID = Object_ID('ParametrosTaxas'))
 BEGIN ALTER TABLE ParametrosTaxas ADD UsuarioAlteracao NVARCHAR(100); END;
 
--- Lancamentos (UsuarioCriacao ja existe como 'Usuario')
+-- Lancamentos
 IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'UsuarioAlteracao' AND Object_ID = Object_ID('Lancamentos'))
 BEGIN ALTER TABLE Lancamentos ADD UsuarioAlteracao NVARCHAR(100); END;
 
 GO
 
 -- =================================================================================
--- 4. INICIALIZAÇÃO DE DADOS PADRÃO
+-- 4. ATUALIZAÇÃO DE COLUNAS DE EXCLUSÃO LÓGICA (CRÍTICO PARA CORREÇÃO DE ERRO 500)
 -- =================================================================================
 
--- A criação do usuário 'admin' agora é gerenciada pela API (Node.js)
+-- ParametrosValores
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'Excluido' AND Object_ID = Object_ID('ParametrosValores'))
+BEGIN ALTER TABLE ParametrosValores ADD Excluido BIT NOT NULL DEFAULT 0; PRINT 'Adicionado Excluido em ParametrosValores'; END;
+
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'MotivoExclusao' AND Object_ID = Object_ID('ParametrosValores'))
+BEGIN ALTER TABLE ParametrosValores ADD MotivoExclusao NVARCHAR(255); PRINT 'Adicionado MotivoExclusao em ParametrosValores'; END;
+
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'MotivoAlteracao' AND Object_ID = Object_ID('ParametrosValores'))
+BEGIN ALTER TABLE ParametrosValores ADD MotivoAlteracao NVARCHAR(255); PRINT 'Adicionado MotivoAlteracao em ParametrosValores'; END;
+
+-- ParametrosTaxas
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'Excluido' AND Object_ID = Object_ID('ParametrosTaxas'))
+BEGIN ALTER TABLE ParametrosTaxas ADD Excluido BIT NOT NULL DEFAULT 0; PRINT 'Adicionado Excluido em ParametrosTaxas'; END;
+
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'MotivoExclusao' AND Object_ID = Object_ID('ParametrosTaxas'))
+BEGIN ALTER TABLE ParametrosTaxas ADD MotivoExclusao NVARCHAR(255); PRINT 'Adicionado MotivoExclusao em ParametrosTaxas'; END;
+
+IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'MotivoAlteracao' AND Object_ID = Object_ID('ParametrosTaxas'))
+BEGIN ALTER TABLE ParametrosTaxas ADD MotivoAlteracao NVARCHAR(255); PRINT 'Adicionado MotivoAlteracao em ParametrosTaxas'; END;
+
+GO

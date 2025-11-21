@@ -106,7 +106,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 </div>
 
                 <div className={`flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.7</p>
+                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.9</p>
                     <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100 mt-1'}`}>
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium whitespace-nowrap">Sérgio Oliveira</p>
@@ -163,8 +163,8 @@ const MainLayout: React.FC = () => {
                 <div className="flex flex-col items-center text-center max-w-lg p-8 bg-slate-800 rounded-lg border border-red-700/50">
                     <XCircleIcon className="w-12 h-12 text-red-500" />
                     <h2 className="mt-4 text-xl font-bold text-white">Erro de Conexão</h2>
-                    <p className="mt-2 text-slate-400">Não foi possível carregar os dados do sistema. Verifique se o serviço de backend está em execução e tente novamente.</p>
-                    <p className="mt-4 text-xs text-slate-500 bg-slate-900 p-2 rounded-md font-mono">{error}</p>
+                    <p className="mt-2 text-slate-400">Não foi possível carregar os dados do sistema. Verifique se o serviço de backend está em execução e se o Banco de Dados está atualizado.</p>
+                    <p className="mt-4 text-xs text-slate-500 bg-slate-900 p-2 rounded-md font-mono text-left w-full overflow-auto max-h-32">{error}</p>
                 </div>
             </div>
         );

@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useContext, useEffect } from 'react';
 import { LancamentoFrete } from './components/LancamentoFrete.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
@@ -11,7 +13,7 @@ import { AdminPanel } from './components/AdminPanel.tsx';
 import { Login } from './components/Login.tsx';
 import { DataProvider, DataContext } from './context/DataContext.tsx';
 import { AuthProvider, AuthContext, useAuth } from './context/AuthContext.tsx';
-import { ChartBarIcon, CogIcon, PlusCircleIcon, TruckIcon, DocumentReportIcon, CloudUploadIcon, BoxIcon, SpinnerIcon, XCircleIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, Frete360Logo, AdjustmentsIcon } from './components/icons.tsx';
+import { ChartBarIcon, CogIcon, PlusCircleIcon, TruckIcon, DocumentReportIcon, CloudUploadIcon, BoxIcon, SpinnerIcon, XCircleIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, Frete360Logo, AdjustmentsIcon, ExclamationIcon } from './components/icons.tsx';
 
 type View = 'dashboard' | 'lancamento' | 'veiculos' | 'cargas' | 'parametros' | 'relatorios' | 'importacao' | 'admin';
 
@@ -113,7 +115,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 </div>
 
                 <div className={`flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.23</p>
+                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.24</p>
                     <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100 mt-1'}`}>
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium whitespace-nowrap">Sérgio Oliveira</p>
@@ -139,12 +141,20 @@ const MainLayout: React.FC = () => {
     const { user } = useAuth();
     const [activeView, setActiveView] = useState<View>('dashboard');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [readOnlyMode, setReadOnlyMode] = useState(false);
 
     // Atualiza o título da página dinamicamente
     useEffect(() => {
         const company = systemConfig.companyName || 'Gestão de Fretes';
         document.title = `Frete360 | ${company}`;
     }, [systemConfig.companyName]);
+
+    // Escuta evento de licença expirada vindo da API
+    useEffect(() => {
+        const handleLicenseExpired = () => setReadOnlyMode(true);
+        window.addEventListener('FRETE360_LICENSE_EXPIRED', handleLicenseExpired);
+        return () => window.removeEventListener('FRETE360_LICENSE_EXPIRED', handleLicenseExpired);
+    }, []);
 
     const renderContent = () => {
         // Proteção extra: se tentar acessar admin sem ser admin, volta pro dashboard
@@ -178,6 +188,23 @@ const MainLayout: React.FC = () => {
     }
 
     if (error) {
+         // Se o erro for de licença ausente (bloqueio total), mostra tela especifica
+         if (error.includes('LICENSE_MISSING') || error.includes('LICENSE_INVALID')) {
+             return (
+                <div className="flex h-screen w-full items-center justify-center bg-slate-900 p-4">
+                    <div className="flex flex-col items-center text-center max-w-lg p-8 bg-slate-800 rounded-lg border border-red-700/50 shadow-2xl">
+                        <ExclamationIcon className="w-16 h-16 text-red-500 mb-4" />
+                        <h2 className="text-2xl font-bold text-white">Acesso Bloqueado</h2>
+                        <p className="mt-2 text-slate-300">Este sistema não possui uma licença válida ativa.</p>
+                        <p className="mt-4 text-sm text-slate-400">Se você é um administrador, faça login para registrar a licença.</p>
+                        <button onClick={() => window.location.reload()} className="mt-6 bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-6 rounded-md">
+                            Tentar Novamente / Login
+                        </button>
+                    </div>
+                </div>
+             );
+         }
+
          return (
             <div className="flex h-screen w-full items-center justify-center bg-slate-900 p-4">
                 <div className="flex flex-col items-center text-center max-w-lg p-8 bg-slate-800 rounded-lg border border-red-700/50">
@@ -191,13 +218,21 @@ const MainLayout: React.FC = () => {
     }
 
     return (
-        <div className="flex h-screen bg-slate-800 text-slate-100">
-            <Sidebar activeView={activeView} setView={setActiveView} isCollapsed={isSidebarCollapsed} setCollapsed={setIsSidebarCollapsed} />
-            <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-800">
-                <div className="max-w-7xl mx-auto">
-                   {renderContent()}
+        <div className="flex flex-col h-screen bg-slate-800 text-slate-100">
+            {readOnlyMode && (
+                <div className="bg-orange-600 text-white text-center text-xs font-bold py-1 px-4 flex justify-center items-center shadow-md z-50">
+                    <ExclamationIcon className="w-4 h-4 mr-2" />
+                    MODO SOMENTE LEITURA - LICENÇA EXPIRADA - CONTATE O SUPORTE
                 </div>
-            </main>
+            )}
+            <div className="flex flex-1 overflow-hidden">
+                <Sidebar activeView={activeView} setView={setActiveView} isCollapsed={isSidebarCollapsed} setCollapsed={setIsSidebarCollapsed} />
+                <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-800 relative">
+                    <div className="max-w-7xl mx-auto">
+                       {renderContent()}
+                    </div>
+                </main>
+            </div>
         </div>
     );
 };

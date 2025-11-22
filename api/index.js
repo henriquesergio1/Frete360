@@ -1,5 +1,6 @@
 
 
+
 // Carrega as variáveis de ambiente
 require('dotenv').config();
 
@@ -58,12 +59,11 @@ function executeQuery(config, query, params = []) {
   });
 }
 
-// --- Função de Normalização de Chaves (Resolver problemas de Case Sensitivity do Banco) ---
+// --- Função de Normalização de Chaves ---
 const normalizeKeys = (obj) => {
     const newObj = {};
     Object.keys(obj).forEach(key => {
         const k = key.toUpperCase();
-        // Mapeamento Veículos
         if (k === 'ID_VEICULO') newObj['ID_Veiculo'] = obj[key];
         else if (k === 'COD_VEICULO') newObj['COD_Veiculo'] = obj[key];
         else if (k === 'PLACA') newObj['Placa'] = obj[key];
@@ -74,8 +74,6 @@ const normalizeKeys = (obj) => {
         else if (k === 'ORIGEM') newObj['Origem'] = obj[key];
         else if (k === 'USUARIOCRIACAO') newObj['UsuarioCriacao'] = obj[key];
         else if (k === 'USUARIOALTERACAO') newObj['UsuarioAlteracao'] = obj[key];
-        
-        // Mapeamento Cargas
         else if (k === 'ID_CARGA') newObj['ID_Carga'] = obj[key];
         else if (k === 'NUMEROCARGA') newObj['NumeroCarga'] = obj[key];
         else if (k === 'CIDADE') newObj['Cidade'] = obj[key];
@@ -85,29 +83,27 @@ const normalizeKeys = (obj) => {
         else if (k === 'EXCLUIDO') newObj['Excluido'] = obj[key];
         else if (k === 'MOTIVOEXCLUSAO') newObj['MotivoExclusao'] = obj[key];
         else if (k === 'MOTIVOALTERACAO') newObj['MotivoAlteracao'] = obj[key];
-        
-        // Fallback: mantem original se não encontrar mapeamento
         else newObj[key] = obj[key];
     });
     return newObj;
 };
 
-// --- Middleware de Autenticação ---
-const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Token não fornecido.' });
-
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.status(403).json({ message: 'Token inválido.' });
-        req.user = user;
-        next();
-    });
+// --- Inicialização do Banco (Tabela de Configuração/Licença) ---
+const initSystemSettings = async () => {
+    try {
+        const checkTable = `IF OBJECT_ID('dbo.SystemSettings', 'U') IS NULL CREATE TABLE SystemSettings (ID INT PRIMARY KEY CHECK (ID = 1), LicenseKey NVARCHAR(MAX), CompanyName NVARCHAR(100), LogoUrl NVARCHAR(MAX))`;
+        await executeQuery(configOdin, checkTable);
+        
+        // Garante que existe a linha ID 1
+        const checkRow = "IF NOT EXISTS (SELECT * FROM SystemSettings WHERE ID = 1) INSERT INTO SystemSettings (ID, LicenseKey) VALUES (1, NULL)";
+        await executeQuery(configOdin, checkRow);
+    } catch (e) { console.error('Erro init settings:', e.message); }
 };
+initSystemSettings();
 
 const app = express();
 
-// CORS Explícito para garantir que o Header Authorization passe
+// CORS Explícito
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -122,10 +118,83 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 const port = process.env.API_PORT || 3000;
 
+// --- MIDDLEWARE DE LICENÇA ---
+const checkLicense = async (req, res, next) => {
+    // Rotas isentas de verificação de licença
+    const publicRoutes = ['/login', '/license', '/system/status'];
+    const isPublic = publicRoutes.some(route => req.path.startsWith(route));
+    
+    // OPTIONS sempre passa (CORS)
+    if (req.method === 'OPTIONS') return next();
+
+    try {
+        const { rows } = await executeQuery(configOdin, "SELECT LicenseKey FROM SystemSettings WHERE ID = 1");
+        const licenseKey = rows[0]?.LicenseKey;
+
+        if (!licenseKey) {
+            // Sem licença: Bloqueia tudo exceto rotas públicas
+            if (isPublic) return next();
+            return res.status(402).json({ message: 'Licença não encontrada. Por favor, registre o sistema no menu Admin.', code: 'LICENSE_MISSING' });
+        }
+
+        // Verifica a licença
+        try {
+            const decoded = jwt.verify(licenseKey, JWT_SECRET);
+            // Licença Válida e Ativa -> Passa tudo
+            req.license = decoded;
+            return next();
+
+        } catch (err) {
+            if (err.name === 'TokenExpiredError') {
+                // LICENÇA EXPIRADA -> MODO LEITURA
+                // Permite GET, Login e Rotas de Licença. Bloqueia POST/PUT/DELETE de dados.
+                
+                if (req.method === 'GET' || isPublic) {
+                    // Adiciona header para avisar o frontend
+                    res.set('X-License-Status', 'EXPIRED');
+                    return next();
+                } else {
+                    return res.status(402).json({ 
+                        message: 'Sua licença expirou. O sistema está em MODO LEITURA. Contate o suporte para renovar.', 
+                        code: 'LICENSE_EXPIRED' 
+                    });
+                }
+            } else {
+                // Licença Inválida (Assinatura ruim) -> Bloqueia tudo
+                if (isPublic) return next();
+                return res.status(402).json({ message: 'Licença inválida ou corrompida.', code: 'LICENSE_INVALID' });
+            }
+        }
+    } catch (error) {
+        // Se der erro no banco, deixa passar para não travar o sistema por erro técnico, 
+        // ou bloqueia se preferir segurança máxima. Aqui vamos logar e bloquear.
+        console.error('Erro ao verificar licença:', error);
+        if (isPublic) return next();
+        return res.status(500).json({ message: 'Erro interno ao verificar licença.' });
+    }
+};
+
+// Aplica o middleware globalmente
+app.use(checkLicense);
+
+
+// --- Middleware de Autenticação (Já existente) ---
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'Token não fornecido.' });
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ message: 'Token inválido.' });
+        req.user = user;
+        next();
+    });
+};
+
+
 // Inicializa Admin se não existir
 const initAdminUser = async () => {
     try {
-        // Verifica especificamente se o usuário 'admin' existe
         const { rows } = await executeQuery(configOdin, "SELECT ID_Usuario FROM Usuarios WHERE Usuario = 'admin'");
         if (rows.length === 0) {
             console.log('Usuário admin não encontrado. Criando...');
@@ -138,8 +207,53 @@ const initAdminUser = async () => {
 };
 initAdminUser();
 
-// --- ROTAS PÚBLICAS ---
+// --- ROTAS PÚBLICAS / SISTEMA ---
 app.get('/', (req, res) => res.send('API Fretes OK. Acesse /docs para documentação.'));
+
+// Endpoint para verificar status da licença (Frontend usa isso no boot)
+app.get('/system/status', async (req, res) => {
+    try {
+        const { rows } = await executeQuery(configOdin, "SELECT LicenseKey FROM SystemSettings WHERE ID = 1");
+        const key = rows[0]?.LicenseKey;
+        
+        if (!key) return res.json({ status: 'MISSING' });
+
+        try {
+            const decoded = jwt.verify(key, JWT_SECRET);
+            res.json({ status: 'ACTIVE', client: decoded.client, expiresAt: new Date(decoded.exp * 1000) });
+        } catch (err) {
+            if (err.name === 'TokenExpiredError') {
+                const decoded = jwt.decode(key); // Decoda sem verificar para pegar info
+                res.json({ status: 'EXPIRED', client: decoded?.client, expiresAt: new Date(decoded?.exp * 1000) });
+            } else {
+                res.json({ status: 'INVALID' });
+            }
+        }
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Endpoint para Atualizar Licença
+app.post('/license', authenticateToken, async (req, res) => {
+    if (req.user.perfil !== 'Admin') return res.status(403).json({ message: 'Acesso negado.' });
+    const { licenseKey } = req.body;
+
+    try {
+        // Valida antes de salvar
+        const decoded = jwt.verify(licenseKey, JWT_SECRET);
+        
+        await executeQuery(configOdin, "UPDATE SystemSettings SET LicenseKey = @key WHERE ID = 1", [
+            { name: 'key', type: TYPES.NVarChar, value: licenseKey }
+        ]);
+        
+        res.json({ success: true, message: 'Licença ativada com sucesso!', client: decoded.client, expiresAt: new Date(decoded.exp * 1000) });
+    } catch (err) {
+        if (err.name === 'TokenExpiredError') {
+            res.status(400).json({ message: 'Esta licença já está expirada.' });
+        } else {
+            res.status(400).json({ message: 'Chave de licença inválida.' });
+        }
+    }
+});
 
 app.post('/login', async (req, res) => {
     const { usuario, senha } = req.body;
@@ -206,17 +320,10 @@ app.put('/usuarios/:id', authenticateToken, async (req, res) => {
 // VEÍCULOS
 app.get('/veiculos', authenticateToken, async (req, res) => {
     try { 
-        // USO DE 'AS' (ALIASES) PARA FORÇAR O NOME CORRETO DAS COLUNAS JSON
         const query = 'SELECT ID_Veiculo AS ID_Veiculo, COD_Veiculo AS COD_Veiculo, Placa AS Placa, TipoVeiculo AS TipoVeiculo, Motorista AS Motorista, CapacidadeKG AS CapacidadeKG, Ativo AS Ativo, Origem AS Origem, UsuarioCriacao AS UsuarioCriacao, UsuarioAlteracao AS UsuarioAlteracao FROM Veiculos ORDER BY Ativo DESC, Placa ASC';
-        console.log('[DEBUG API] Solicitando Veículos...');
         const { rows } = await executeQuery(configOdin, query); 
-        console.log(`[DEBUG API] Veículos encontrados: ${rows.length}`);
-        
-        // Mantemos normalizeKeys como backup, mas o alias SQL é mais forte
-        const normalizedRows = rows.map(normalizeKeys);
-        res.json(normalizedRows); 
+        res.json(rows.map(normalizeKeys)); 
     } catch (error) { 
-        console.error('[DEBUG API] Erro ao buscar veículos:', error);
         res.status(500).json({ message: error.message }); 
     }
 });
@@ -287,7 +394,6 @@ app.post('/veiculos-erp/sync', authenticateToken, async (req, res) => {
 // CARGAS
 app.get('/cargas-manuais', authenticateToken, async (req, res) => {
     try { 
-        // USO DE 'AS' (ALIASES) PARA FORÇAR O NOME CORRETO DAS COLUNAS
         const query = 'SELECT ID_Carga AS ID_Carga, NumeroCarga AS NumeroCarga, Cidade AS Cidade, ValorCTE AS ValorCTE, DataCTE AS DataCTE, KM AS KM, COD_VEICULO AS COD_VEICULO, Origem AS Origem, Excluido AS Excluido, MotivoExclusao AS MotivoExclusao, MotivoAlteracao AS MotivoAlteracao, UsuarioCriacao AS UsuarioCriacao, UsuarioAlteracao AS UsuarioAlteracao FROM CargasManuais ORDER BY DataCTE DESC';
         const { rows } = await executeQuery(configOdin, query); 
         res.json(rows.map(normalizeKeys)); 
@@ -337,7 +443,6 @@ app.post('/cargas-erp/check', authenticateToken, async (req, res) => {
         
         const agg = new Map();
         erpRows.forEach(r => {
-            // CORREÇÃO CRÍTICA: Ignorar registros sem veículo definido (NULL)
             if (!r.COD_VEICULO) return;
             const codRaw = String(r.COD_VEICULO).trim().toUpperCase();
             if (codRaw === 'NULL' || codRaw === '') return;
@@ -354,7 +459,6 @@ app.post('/cargas-erp/check', authenticateToken, async (req, res) => {
         
         const newC = [], delC = [], missingV = new Set();
         for (const c of agg.values()) {
-            // Proteção adicional para o loop de verificação
             if (!c.COD_Veiculo || c.COD_Veiculo === 'NULL') continue;
 
             if (!vSet.has(c.COD_Veiculo)) { missingV.add(c.COD_Veiculo); continue; }
@@ -419,7 +523,7 @@ app.get('/lancamentos', authenticateToken, async (req, res) => {
             l.Cargas = cs.map(c => ({ ID_Carga: c.ID_Carga_Origem, NumeroCarga: c.NumeroCarga, Cidade: c.Cidade, ValorCTE: c.ValorCTE, DataCTE: c.DataCTE.toISOString().split('T')[0], KM: c.KM, COD_Veiculo: c.COD_VEICULO }));
             l.Calculo = { CidadeBase: l.CidadeBase, KMBase: l.KMBase, ValorBase: l.ValorBase, Pedagio: l.Pedagio, Balsa: l.Balsa, Ambiental: l.Ambiental, Chapa: l.Chapa, Outras: l.Outras, ValorTotal: l.ValorTotal };
         }
-        res.json(ls); // Lancamentos geralmente retornam camelCase do driver, se der problema, aplicar normalize tb
+        res.json(ls); 
     } catch (e) { res.status(500).json({ message: e.message }); }
 });
 

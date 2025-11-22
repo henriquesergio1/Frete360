@@ -1,6 +1,4 @@
-
-
-import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento, VehicleCheckResult, VehicleConflict, CargaCheckResult, CargaReactivation, Usuario, AuthResponse } from '../types.ts';
+import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento, VehicleCheckResult, VehicleConflict, CargaCheckResult, CargaReactivation, Usuario, AuthResponse, LicenseStatus } from '../types.ts';
 import * as mockApi from '../api/mockData.ts';
 import Papa from 'papaparse';
 
@@ -37,18 +35,14 @@ export const toggleMode = (mode: 'MOCK' | 'API') => {
 export const getCurrentMode = () => USE_MOCK ? 'MOCK' : 'API';
 
 // =============================================================================
-// UTILITÁRIOS API REAL (COM INTERCEPTOR DE TOKEN)
+// UTILITÁRIOS API REAL
 // =============================================================================
 
 const getToken = () => localStorage.getItem('AUTH_TOKEN');
 
 const handleResponse = async (response: Response, isLoginRequest: boolean = false) => {
-    // 401: Não autorizado (Token ausente/expirado OU Credenciais Inválidas no Login)
-    // 403: Proibido (Token inválido ou sem permissão)
+    // 401: Não autorizado / 403: Proibido
     if (response.status === 401 || response.status === 403) {
-        
-        // CORREÇÃO CRÍTICA: Se o erro 401 vier da tentativa de login, 
-        // NÃO recarrega a página. Apenas lança o erro para o UI mostrar "Senha incorreta".
         if (isLoginRequest) {
             let errorMessage = 'Falha na autenticação.';
             try {
@@ -63,6 +57,12 @@ const handleResponse = async (response: Response, isLoginRequest: boolean = fals
         localStorage.removeItem('AUTH_USER');
         window.location.reload();
         throw new Error('Sessão expirada ou inválida. Por favor, faça login novamente.');
+    }
+
+    // 402: Payment Required (Licença Expirada / Read Only)
+    if (response.status === 402) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Modo Somente Leitura. Licença Expirada.');
     }
     
     if (!response.ok) {
@@ -102,7 +102,6 @@ const apiRequest = async (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', b
     
     try {
         const response = await fetch(url, options);
-        // Passa true se o endpoint for login, para evitar loop de reload em caso de erro 401
         const isLogin = cleanEndpoint === 'login';
         return handleResponse(response, isLogin);
     } catch (error: any) {
@@ -115,7 +114,6 @@ const apiGet = async (endpoint: string) => {
     const cleanUrl = API_BASE_URL.replace(/\/$/, '');
     const cleanEndpoint = endpoint.replace(/^\//, '');
     
-    // CACHE BUSTING: Adiciona timestamp para forçar o navegador/proxy a buscar dados novos
     const cacheBuster = `_t=${new Date().getTime()}`;
     const separator = endpoint.includes('?') ? '&' : '?';
     const url = `${cleanUrl}/${cleanEndpoint}${separator}${cacheBuster}`;
@@ -128,18 +126,19 @@ const apiGet = async (endpoint: string) => {
     };
     
     const token = getToken();
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    } else {
-        console.warn(`[API WARN] Requisição GET sem token para ${url}`);
-    }
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     try {
-        console.debug(`[API GET] Fetching: ${url}`);
         const response = await fetch(url, { headers, cache: 'no-store' });
-        // Requisições GET normais não são login, então passa false
         const data = await handleResponse(response, false);
-        console.debug(`[API GET] Success ${endpoint}:`, Array.isArray(data) ? `${data.length} itens` : 'Objeto recebido');
+        
+        // Verifica se o header de status da licença veio expirado (Modo Leitura)
+        const licenseStatus = response.headers.get('X-License-Status');
+        if (licenseStatus === 'EXPIRED') {
+            // Dispara um evento customizado para o App.tsx capturar e mostrar o banner
+            window.dispatchEvent(new CustomEvent('FRETE360_LICENSE_EXPIRED'));
+        }
+
         return data;
     } catch (error: any) {
         console.error(`[API ERROR] Falha ao buscar dados de ${url}:`, error);
@@ -152,6 +151,10 @@ const apiGet = async (endpoint: string) => {
 // =============================================================================
 
 const RealService = {
+    // Sistema & Licença
+    getSystemStatus: (): Promise<LicenseStatus> => apiGet('/system/status'),
+    updateLicense: (licenseKey: string): Promise<any> => apiRequest('/license', 'POST', { licenseKey }),
+
     // Autenticação & Usuários
     login: (usuario: string, senha: string): Promise<AuthResponse> => apiRequest('/login', 'POST', { usuario, senha }),
     getUsuarios: (): Promise<Usuario[]> => apiGet('/usuarios'),
@@ -216,6 +219,9 @@ const RealService = {
 // =============================================================================
 
 const MockService = {
+    getSystemStatus: async (): Promise<LicenseStatus> => ({ status: 'ACTIVE', client: 'Mock Client', expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)) }),
+    updateLicense: async () => ({ success: true, message: 'Licença Mock Ativada' }),
+
     login: mockApi.mockLogin,
     getUsuarios: mockApi.getMockUsuarios,
     createUsuario: mockApi.createMockUsuario,
@@ -256,6 +262,9 @@ const MockService = {
 // =============================================================================
 // EXPORTAÇÕES
 // =============================================================================
+export const getSystemStatus = USE_MOCK ? MockService.getSystemStatus : RealService.getSystemStatus;
+export const updateLicense = USE_MOCK ? MockService.updateLicense : RealService.updateLicense;
+
 export const login = USE_MOCK ? MockService.login : RealService.login;
 export const getUsuarios = USE_MOCK ? MockService.getUsuarios : RealService.getUsuarios;
 export const createUsuario = USE_MOCK ? MockService.createUsuario : RealService.createUsuario;

@@ -1,5 +1,6 @@
 
 
+
 export interface Veiculo {
   ID_Veiculo: number;
   COD_Veiculo: string;
@@ -90,6 +91,12 @@ export type NewLancamento = Omit<Lancamento, 'ID_Lancamento'>;
 export interface SystemConfig {
     companyName: string;
     logoUrl: string;
+}
+
+export interface LicenseStatus {
+    status: 'ACTIVE' | 'EXPIRED' | 'INVALID' | 'MISSING';
+    client?: string;
+    expiresAt?: Date;
 }
 
 // Interfaces para Importação de Veículos

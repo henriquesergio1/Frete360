@@ -1,4 +1,6 @@
 
+
+
 version: '3.8'
 
 services:
@@ -19,10 +21,14 @@ services:
       - API_PORT=3000
       # Segredo para assinatura de Tokens (Login e Licença). Mude isso em produção!
       - JWT_SECRET=${JWT_SECRET:-fretes-secret-key-change-in-prod}
-      - DB_SERVER_ODIN=${DB_SERVER_ODIN}
-      - DB_DATABASE_ODIN=${DB_DATABASE_ODIN}
-      - DB_USER_ODIN=${DB_USER_ODIN}
-      - DB_PASSWORD_ODIN=${DB_PASSWORD_ODIN}
+      
+      # Conexão Principal (Banco Fretes)
+      - DB_SERVER_FRETE=${DB_SERVER_FRETE}
+      - DB_DATABASE_FRETE=${DB_DATABASE_FRETE}
+      - DB_USER_FRETE=${DB_USER_FRETE}
+      - DB_PASSWORD_FRETE=${DB_PASSWORD_FRETE}
+      
+      # Conexão Legada (ERP)
       - DB_SERVER_ERP=${DB_SERVER_ERP}
       - DB_DATABASE_ERP=${DB_DATABASE_ERP}
       - DB_USER_ERP=${DB_USER_ERP}

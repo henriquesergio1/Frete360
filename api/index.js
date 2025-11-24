@@ -20,12 +20,12 @@ const SALT_ROUNDS = 10;
 
 // --- Configurações de BD ---
 const configOdin = {
-  server: process.env.DB_SERVER_ODIN,
+  server: process.env.DB_SERVER_FRETE,
   authentication: {
     type: 'default',
-    options: { userName: process.env.DB_USER_ODIN, password: process.env.DB_PASSWORD_ODIN },
+    options: { userName: process.env.DB_USER_FRETE, password: process.env.DB_PASSWORD_FRETE },
   },
-  options: { encrypt: true, database: process.env.DB_DATABASE_ODIN, rowCollectionOnRequestCompletion: true, trustServerCertificate: true },
+  options: { encrypt: true, database: process.env.DB_DATABASE_FRETE, rowCollectionOnRequestCompletion: true, trustServerCertificate: true },
 };
 
 const configErp = {

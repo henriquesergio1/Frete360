@@ -1,6 +1,4 @@
 
-
-
 // Carrega as variáveis de ambiente
 require('dotenv').config();
 
@@ -121,8 +119,15 @@ const port = process.env.API_PORT || 3000;
 // --- MIDDLEWARE DE LICENÇA ---
 const checkLicense = async (req, res, next) => {
     // Rotas isentas de verificação de licença
-    const publicRoutes = ['/login', '/license', '/system/status'];
-    const isPublic = publicRoutes.some(route => req.path.startsWith(route));
+    // /system/config precisa ser pública para o login carregar o logo, mas a edição é protegida
+    const publicRoutes = ['/login', '/license', '/system/status', '/system/config'];
+    
+    // Verifica se é rota pública E método permitido (GET para config)
+    const isPublicRoute = publicRoutes.some(route => req.path.startsWith(route));
+    const isConfigPost = req.path.startsWith('/system/config') && req.method !== 'GET';
+    
+    // Se for POST/PUT na config, não é público, precisa de licença e auth
+    if (isPublicRoute && !isConfigPost) return next();
     
     // OPTIONS sempre passa (CORS)
     if (req.method === 'OPTIONS') return next();
@@ -133,7 +138,6 @@ const checkLicense = async (req, res, next) => {
 
         if (!licenseKey) {
             // Sem licença: Bloqueia tudo exceto rotas públicas
-            if (isPublic) return next();
             return res.status(402).json({ message: 'Licença não encontrada. Por favor, registre o sistema no menu Admin.', code: 'LICENSE_MISSING' });
         }
 
@@ -149,7 +153,7 @@ const checkLicense = async (req, res, next) => {
                 // LICENÇA EXPIRADA -> MODO LEITURA
                 // Permite GET, Login e Rotas de Licença. Bloqueia POST/PUT/DELETE de dados.
                 
-                if (req.method === 'GET' || isPublic) {
+                if (req.method === 'GET' || isPublicRoute) {
                     // Adiciona header para avisar o frontend
                     res.set('X-License-Status', 'EXPIRED');
                     return next();
@@ -161,7 +165,6 @@ const checkLicense = async (req, res, next) => {
                 }
             } else {
                 // Licença Inválida (Assinatura ruim) -> Bloqueia tudo
-                if (isPublic) return next();
                 return res.status(402).json({ message: 'Licença inválida ou corrompida.', code: 'LICENSE_INVALID' });
             }
         }
@@ -169,7 +172,6 @@ const checkLicense = async (req, res, next) => {
         // Se der erro no banco, deixa passar para não travar o sistema por erro técnico, 
         // ou bloqueia se preferir segurança máxima. Aqui vamos logar e bloquear.
         console.error('Erro ao verificar licença:', error);
-        if (isPublic) return next();
         return res.status(500).json({ message: 'Erro interno ao verificar licença.' });
     }
 };
@@ -254,6 +256,30 @@ app.post('/license', authenticateToken, async (req, res) => {
         }
     }
 });
+
+// --- CONFIGURAÇÃO DO SISTEMA (Nome e Logo) ---
+// GET Publico (para Login)
+app.get('/system/config', async (req, res) => {
+    try {
+        const { rows } = await executeQuery(configOdin, "SELECT CompanyName, LogoUrl FROM SystemSettings WHERE ID = 1");
+        const config = rows[0] || { CompanyName: 'Fretes', LogoUrl: '' };
+        res.json({ companyName: config.CompanyName, logoUrl: config.LogoUrl });
+    } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// PUT Protegido (Admin)
+app.put('/system/config', authenticateToken, async (req, res) => {
+    if (req.user.perfil !== 'Admin') return res.status(403).json({ message: 'Acesso negado.' });
+    const { companyName, logoUrl } = req.body;
+    try {
+        await executeQuery(configOdin, "UPDATE SystemSettings SET CompanyName = @name, LogoUrl = @logo WHERE ID = 1", [
+            { name: 'name', type: TYPES.NVarChar, value: companyName },
+            { name: 'logo', type: TYPES.NVarChar, value: logoUrl }
+        ]);
+        res.json({ success: true, message: 'Configurações salvas.' });
+    } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
 
 app.post('/login', async (req, res) => {
     const { usuario, senha } = req.body;

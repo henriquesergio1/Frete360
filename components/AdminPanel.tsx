@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useContext, useEffect } from 'react';
 import { DataContext } from '../context/DataContext.tsx';
 import { GestaoUsuarios } from './GestaoUsuarios.tsx';
@@ -138,17 +136,26 @@ const SystemBranding: React.FC = () => {
     const { systemConfig, updateSystemConfig } = useContext(DataContext);
     const [name, setName] = useState(systemConfig.companyName);
     const [logo, setLogo] = useState(systemConfig.logoUrl);
-    const [isSaved, setIsSaved] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [message, setMessage] = useState<string | null>(null);
 
     useEffect(() => {
         setName(systemConfig.companyName);
         setLogo(systemConfig.logoUrl);
     }, [systemConfig]);
 
-    const handleSave = () => {
-        updateSystemConfig({ companyName: name, logoUrl: logo });
-        setIsSaved(true);
-        setTimeout(() => setIsSaved(false), 2000);
+    const handleSave = async () => {
+        setIsSaving(true);
+        setMessage(null);
+        try {
+            await updateSystemConfig({ companyName: name, logoUrl: logo });
+            setMessage('Configurações salvas com sucesso!');
+            setTimeout(() => setMessage(null), 3000);
+        } catch (error: any) {
+            setMessage('Erro ao salvar: ' + error.message);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -174,29 +181,40 @@ const SystemBranding: React.FC = () => {
                             className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500"
                             placeholder="https://exemplo.com/logo.png"
                         />
-                        <p className="text-xs text-slate-500 mt-1">Recomendado: Imagem PNG transparente, quadrada ou horizontal.</p>
+                        <p className="text-xs text-slate-500 mt-1">Recomendado: Imagem PNG, quadrada.</p>
                     </div>
                     <button 
                         onClick={handleSave}
-                        className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition duration-200 flex items-center"
+                        disabled={isSaving}
+                        className="bg-sky-600 hover:bg-sky-500 disabled:bg-sky-800 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md transition duration-200 flex items-center"
                     >
-                        {isSaved ? <CheckCircleIcon className="w-5 h-5 mr-2" /> : null}
-                        {isSaved ? 'Salvo!' : 'Salvar Configurações'}
+                        {isSaving ? <SpinnerIcon className="w-5 h-5 mr-2"/> : <CheckCircleIcon className="w-5 h-5 mr-2" />}
+                        {isSaving ? 'Salvando...' : 'Salvar Configurações'}
                     </button>
+                    {message && (
+                        <p className={`text-sm font-bold ${message.includes('Erro') ? 'text-red-400' : 'text-green-400'}`}>
+                            {message}
+                        </p>
+                    )}
                 </div>
 
                 {/* Preview Area */}
                 <div className="bg-slate-900 rounded-lg p-6 flex flex-col items-center justify-center border border-slate-700">
                     <p className="text-xs text-slate-500 mb-4 uppercase tracking-wider">Pré-visualização do Menu</p>
-                    <div className="bg-slate-800 w-48 p-4 rounded-md border border-slate-700 flex flex-col items-center">
+                    <div className="bg-slate-800/30 w-full p-6 rounded-md border border-slate-700 flex flex-col items-center">
                          {logo ? (
-                            <img src={logo} alt="Logo Preview" className="h-12 object-contain mb-2" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                            <img 
+                                src={logo} 
+                                alt="Logo Preview" 
+                                className="h-24 w-24 rounded-full object-cover border-2 border-sky-500/30 shadow-lg shadow-sky-500/20 mb-4 bg-slate-900" 
+                                onError={(e) => (e.currentTarget.style.display = 'none')} 
+                            />
                         ) : (
-                             <div className="h-12 w-12 bg-slate-700 rounded-full flex items-center justify-center mb-2">
-                                <CogIcon className="h-8 w-8 text-slate-500"/>
+                             <div className="h-24 w-24 bg-slate-700 rounded-full flex items-center justify-center mb-4 border-2 border-sky-500/30">
+                                <CogIcon className="h-12 w-12 text-slate-500"/>
                              </div>
                         )}
-                        {name && <span className="text-white font-bold text-center text-sm">{name}</span>}
+                        {name && <span className="text-white font-bold text-center text-lg tracking-wide">{name}</span>}
                     </div>
                 </div>
             </div>

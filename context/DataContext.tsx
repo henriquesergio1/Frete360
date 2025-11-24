@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Veiculo, ParametroValor, ParametroTaxa, Carga, Lancamento, NewLancamento, SystemConfig } from '../types.ts';
 import * as api from '../services/apiService.ts';
@@ -17,7 +18,7 @@ interface DataContextType {
 
     setEditingLancamento: (lancamento: Lancamento | null) => void;
     reloadData: (dataType: 'veiculos' | 'cargas' | 'parametrosValores' | 'parametrosTaxas' | 'lancamentos' | 'all') => Promise<void>;
-    updateSystemConfig: (config: SystemConfig) => void;
+    updateSystemConfig: (config: SystemConfig) => Promise<void>;
     
     // CRUD operations
     addLancamento: (lancamento: NewLancamento) => Promise<Lancamento>;
@@ -56,15 +57,21 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // System Config State (Persisted in LocalStorage)
-    const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => {
-        const saved = localStorage.getItem('SYSTEM_CONFIG');
-        return saved ? JSON.parse(saved) : { companyName: 'Fretes', logoUrl: '' };
-    });
+    // System Config State - Agora carregado da API, mas inicializado vazio
+    const [systemConfig, setSystemConfig] = useState<SystemConfig>({ companyName: 'Fretes', logoUrl: '' });
 
-    const updateSystemConfig = useCallback((config: SystemConfig) => {
-        setSystemConfig(config);
-        localStorage.setItem('SYSTEM_CONFIG', JSON.stringify(config));
+    const updateSystemConfig = useCallback(async (config: SystemConfig) => {
+        try {
+            // Salva na API
+            await api.updateSystemConfig(config);
+            // Atualiza estado local
+            setSystemConfig(config);
+            // Mantém cache no LocalStorage para login rápido (fallback)
+            localStorage.setItem('SYSTEM_CONFIG', JSON.stringify(config));
+        } catch (e) {
+            console.error("Erro ao salvar configurações:", e);
+            throw e;
+        }
     }, []);
 
     const loadInitialData = useCallback(async () => {
@@ -73,18 +80,19 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
             setError(null);
             setLoading(true);
             
-            const [veiculosData, pValoresData, pTaxasData, cargasManuaisData, lancamentosData] = await Promise.all([
+            const [veiculosData, pValoresData, pTaxasData, cargasManuaisData, lancamentosData, configData] = await Promise.all([
                 api.getVeiculos(),
                 api.getParametrosValores(),
                 api.getParametrosTaxas(),
                 api.getCargasManuais(),
                 api.getLancamentos(),
+                api.getSystemConfig(),
             ]);
 
             // LOGS DE DIAGNÓSTICO
             console.log('[DataContext] Veículos carregados:', veiculosData ? veiculosData.length : 'NULL');
             console.log('[DataContext] Cargas carregadas:', cargasManuaisData ? cargasManuaisData.length : 'NULL');
-            console.log('[DataContext] Parâmetros Valores:', pValoresData ? pValoresData.length : 'NULL');
+            console.log('[DataContext] Config carregada:', configData);
 
             // Proteção contra null/undefined e atualização de estado
             setVeiculos(Array.isArray(veiculosData) ? veiculosData : []);
@@ -92,6 +100,11 @@ export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
             setParametrosTaxas(Array.isArray(pTaxasData) ? pTaxasData : []);
             setCargas(Array.isArray(cargasManuaisData) ? cargasManuaisData : []);
             setLancamentos(Array.isArray(lancamentosData) ? lancamentosData : []);
+            
+            if (configData) {
+                setSystemConfig(configData);
+                localStorage.setItem('SYSTEM_CONFIG', JSON.stringify(configData));
+            }
             
         } catch (err: any) {
             console.error("Erro crítico ao carregar dados:", err);

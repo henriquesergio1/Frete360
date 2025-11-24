@@ -1,4 +1,5 @@
-import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento, VehicleCheckResult, VehicleConflict, CargaCheckResult, CargaReactivation, Usuario, AuthResponse, LicenseStatus } from '../types.ts';
+
+import { Veiculo, Carga, ParametroValor, ParametroTaxa, MotivoSubstituicao, Lancamento, NewLancamento, VehicleCheckResult, VehicleConflict, CargaCheckResult, CargaReactivation, Usuario, AuthResponse, LicenseStatus, SystemConfig } from '../types.ts';
 import * as mockApi from '../api/mockData.ts';
 import Papa from 'papaparse';
 
@@ -156,6 +157,10 @@ const RealService = {
     // Sistema & Licença
     getSystemStatus: (): Promise<LicenseStatus> => apiGet('/system/status'),
     updateLicense: (licenseKey: string): Promise<any> => apiRequest('/license', 'POST', { licenseKey }),
+    
+    // Configuração (Identidade Visual)
+    getSystemConfig: (): Promise<SystemConfig> => apiGet('/system/config'),
+    updateSystemConfig: (config: SystemConfig): Promise<any> => apiRequest('/system/config', 'PUT', config),
 
     // Autenticação & Usuários
     login: (usuario: string, senha: string): Promise<AuthResponse> => apiRequest('/login', 'POST', { usuario, senha }),
@@ -223,6 +228,10 @@ const RealService = {
 const MockService = {
     getSystemStatus: async (): Promise<LicenseStatus> => ({ status: 'ACTIVE', client: 'Mock Client', expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)) }),
     updateLicense: async () => ({ success: true, message: 'Licença Mock Ativada' }),
+    
+    // Mock de configuração mantido em memória/localStorage pelo DataContext, mas aqui retorna padrão
+    getSystemConfig: async (): Promise<SystemConfig> => ({ companyName: 'Mock Transportes', logoUrl: '' }),
+    updateSystemConfig: async (config: SystemConfig) => ({ success: true, message: 'Config mock salva' }),
 
     login: mockApi.mockLogin,
     getUsuarios: mockApi.getMockUsuarios,
@@ -266,6 +275,8 @@ const MockService = {
 // =============================================================================
 export const getSystemStatus = USE_MOCK ? MockService.getSystemStatus : RealService.getSystemStatus;
 export const updateLicense = USE_MOCK ? MockService.updateLicense : RealService.updateLicense;
+export const getSystemConfig = USE_MOCK ? MockService.getSystemConfig : RealService.getSystemConfig;
+export const updateSystemConfig = USE_MOCK ? MockService.updateSystemConfig : RealService.updateSystemConfig;
 
 export const login = USE_MOCK ? MockService.login : RealService.login;
 export const getUsuarios = USE_MOCK ? MockService.getUsuarios : RealService.getUsuarios;

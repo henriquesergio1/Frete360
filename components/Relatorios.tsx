@@ -97,6 +97,23 @@ const ReciboPagamento: React.FC<{
     const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const formatDate = (dateStr: string) => new Date(dateStr.split('T')[0] + 'T00:00:00').toLocaleDateString('pt-BR');
 
+    // Calcula datas reais se o filtro estiver vazio
+    const getDisplayDate = (type: 'start' | 'end') => {
+        if (data.lancamentos.length === 0) return formatDate(new Date().toISOString());
+
+        if (type === 'start') {
+            if (periodo.start) return formatDate(periodo.start);
+            // Encontra a data mais antiga nos lançamentos
+            const min = data.lancamentos.reduce((prev, curr) => prev < curr.DataFrete ? prev : curr.DataFrete, data.lancamentos[0].DataFrete);
+            return formatDate(min);
+        } else {
+            if (periodo.end) return formatDate(periodo.end);
+            // Encontra a data mais recente nos lançamentos
+            const max = data.lancamentos.reduce((prev, curr) => prev > curr.DataFrete ? prev : curr.DataFrete, data.lancamentos[0].DataFrete);
+            return formatDate(max);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[100] bg-white text-black overflow-auto flex flex-col">
             {/* Controles de Tela (Escondidos na Impressão) */}
@@ -114,14 +131,25 @@ const ReciboPagamento: React.FC<{
 
             {/* Área de Impressão */}
             <div className="p-8 max-w-4xl mx-auto w-full flex-1 print:p-0 print:max-w-none">
-                <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end">
-                    <div>
-                        <h1 className="text-2xl font-bold uppercase">{systemConfig.companyName || 'Empresa de Transportes'}</h1>
-                        <p className="text-sm mt-1">Recibo de Pagamento de Frete / Termo de Aceite</p>
+                <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-center">
+                    <div className="flex items-center">
+                        {/* Logo no Cabeçalho */}
+                        {systemConfig.logoUrl && (
+                            <img 
+                                src={systemConfig.logoUrl} 
+                                alt="Logo" 
+                                className="h-20 w-20 object-contain mr-4 rounded-md" 
+                                onError={(e) => e.currentTarget.style.display = 'none'}
+                            />
+                        )}
+                        <div>
+                            <h1 className="text-2xl font-bold uppercase">{systemConfig.companyName || 'Empresa de Transportes'}</h1>
+                            <p className="text-sm mt-1">Recibo de Pagamento de Frete / Termo de Aceite</p>
+                        </div>
                     </div>
                     <div className="text-right text-sm">
                         <p><strong>Data de Emissão:</strong> {new Date().toLocaleDateString('pt-BR')}</p>
-                        <p><strong>Período:</strong> {periodo.start ? formatDate(periodo.start) : 'Início'} a {periodo.end ? formatDate(periodo.end) : 'Presente'}</p>
+                        <p><strong>Período:</strong> {getDisplayDate('start')} a {getDisplayDate('end')}</p>
                     </div>
                 </div>
 

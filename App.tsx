@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useContext, useEffect } from 'react';
 import { LancamentoFrete } from './components/LancamentoFrete.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
@@ -104,16 +102,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
             </div>
 
             {/* Header da Empresa Cliente (Dinâmico) */}
-            <div className={`flex flex-col items-center justify-center border-b border-slate-800 transition-all duration-300 py-4 min-h-[4rem] bg-slate-800/50 ${isCollapsed ? 'px-2' : 'px-4'}`}>
+            <div className={`flex flex-col items-center justify-center border-b border-slate-800 transition-all duration-500 py-6 bg-slate-800/30 ${isCollapsed ? 'px-2' : 'px-4'}`}>
                 {systemConfig.logoUrl ? (
                     <>
                         <img 
                             src={systemConfig.logoUrl} 
                             alt="Logo" 
-                            className={`object-contain transition-all duration-300 ${isCollapsed ? 'h-6 w-6' : 'h-8 max-w-full'}`} 
+                            className={`transition-all duration-500 rounded-full object-cover border-2 border-sky-500/30 bg-slate-900 shadow-lg shadow-sky-500/10 ${isCollapsed ? 'h-10 w-10' : 'h-24 w-24 mb-4'}`} 
                             onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
-                         <h2 className={`text-xs font-bold text-slate-300 mt-1 text-center transition-all duration-200 ${isCollapsed ? 'opacity-0 h-0 overflow-hidden mt-0' : 'opacity-100'}`}>
+                         <h2 className={`text-sm font-bold text-white text-center tracking-wide transition-all duration-200 ${isCollapsed ? 'opacity-0 h-0 overflow-hidden mt-0' : 'opacity-100'}`}>
                             {systemConfig.companyName}
                         </h2>
                     </>
@@ -165,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 </div>
 
                 <div className={`flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.32</p>
+                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.35</p>
                     <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100 mt-1'}`}>
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium whitespace-nowrap">Sérgio Oliveira</p>

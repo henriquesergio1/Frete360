@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { SpinnerIcon, Frete360Logo, ExclamationIcon, TruckIcon } from './icons.tsx';
+import { getSystemConfig } from '../services/apiService.ts';
 
 export const Login: React.FC = () => {
     const { login } = useAuth();
@@ -10,22 +11,28 @@ export const Login: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     
-    // Estado local para configuração visual (lido do localStorage pois o DataContext ainda não carregou)
+    // Estado local para configuração visual
     const [config, setConfig] = useState({ companyName: '', logoUrl: '' });
 
+    // Carrega a configuração da API assim que a tela de login monta
     useEffect(() => {
-        const savedConfig = localStorage.getItem('SYSTEM_CONFIG');
-        if (savedConfig) {
+        const fetchConfig = async () => {
             try {
-                const parsed = JSON.parse(savedConfig);
-                setConfig({
-                    companyName: parsed.companyName || '',
-                    logoUrl: parsed.logoUrl || ''
-                });
+                // Tenta pegar do cache primeiro para evitar "piscada"
+                const cached = localStorage.getItem('SYSTEM_CONFIG');
+                if (cached) {
+                    setConfig(JSON.parse(cached));
+                }
+                
+                // Atualiza com dados frescos da API
+                const apiConfig = await getSystemConfig();
+                setConfig(apiConfig);
+                localStorage.setItem('SYSTEM_CONFIG', JSON.stringify(apiConfig));
             } catch (e) {
-                // Se der erro, ignora
+                console.warn('Não foi possível carregar a identidade visual do servidor (Login).');
             }
-        }
+        };
+        fetchConfig();
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -73,16 +80,16 @@ export const Login: React.FC = () => {
                             <img 
                                 src={config.logoUrl} 
                                 alt={config.companyName} 
-                                className="h-12 w-auto object-contain mb-2 opacity-80"
+                                className="h-16 w-16 rounded-full object-cover border border-sky-500/30 shadow-md bg-slate-900 mb-2"
                                 onError={(e) => e.currentTarget.style.display = 'none'}
                             />
                         ) : (
-                            <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center mb-2">
+                            <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center mb-2 border border-slate-600">
                                 <TruckIcon className="w-6 h-6 text-slate-400" />
                             </div>
                         )}
-                        <div className="text-center">
-                            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Ambiente</p>
+                        <div className="text-center mt-1">
+                            <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0">Ambiente</p>
                             <h2 className="text-lg font-bold text-white leading-none">{config.companyName || 'Empresa'}</h2>
                         </div>
                     </div>
@@ -133,7 +140,7 @@ export const Login: React.FC = () => {
                 </form>
                 
                 <div className="mt-8 text-center border-t border-slate-700 pt-4">
-                    <p className="text-xs text-slate-600 font-mono mb-2">Versão 1.2.23</p>
+                    <p className="text-xs text-slate-600 font-mono mb-2">Versão 1.2.34</p>
                     <div className="flex flex-col items-center justify-center opacity-70 hover:opacity-100 transition-opacity">
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium">Sérgio Oliveira</p>

@@ -94,7 +94,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
         <div className={`bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
             
             {/* Header Principal do Sistema (Frete360) */}
-            <div className={`flex items-center justify-center py-4 border-b border-slate-800 bg-slate-900 ${isCollapsed ? 'px-1' : 'px-4'}`}>
+            <div className={`flex items-center justify-center py-3 border-b border-slate-800 bg-slate-900 ${isCollapsed ? 'px-1' : 'px-4'}`}>
                 <Frete360Logo className={`text-sky-500 transition-all duration-300 ${isCollapsed ? 'h-8 w-8' : 'h-8 w-8 mr-2'}`} />
                 <h1 className={`text-xl font-extrabold text-white tracking-tight transition-all duration-200 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>
                     Frete<span className="text-sky-500">360</span>
@@ -102,13 +102,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
             </div>
 
             {/* Header da Empresa Cliente (Dinâmico) */}
-            <div className={`flex flex-col items-center justify-center border-b border-slate-800 transition-all duration-500 py-6 bg-slate-800/30 ${isCollapsed ? 'px-2' : 'px-4'}`}>
+            <div className={`flex flex-col items-center justify-center border-b border-slate-800 transition-all duration-500 py-4 bg-slate-800/30 ${isCollapsed ? 'px-2' : 'px-4'}`}>
                 {systemConfig.logoUrl ? (
                     <>
                         <img 
                             src={systemConfig.logoUrl} 
                             alt="Logo" 
-                            className={`transition-all duration-500 rounded-full object-cover border-2 border-sky-500/30 bg-slate-900 shadow-lg shadow-sky-500/10 ${isCollapsed ? 'h-10 w-10' : 'h-24 w-24 mb-4'}`} 
+                            className={`transition-all duration-500 rounded-full object-cover border-2 border-sky-500/30 bg-slate-900 shadow-lg shadow-sky-500/10 ${isCollapsed ? 'h-10 w-10' : 'h-24 w-24 mb-2'}`} 
                             onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
                          <h2 className={`text-sm font-bold text-white text-center tracking-wide transition-all duration-200 ${isCollapsed ? 'opacity-0 h-0 overflow-hidden mt-0' : 'opacity-100'}`}>
@@ -124,13 +124,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 {renderLicenseAlert()}
             </div>
 
-            <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
                 {navItems.map(item => (
                     <button
                         key={item.id}
                         onClick={() => setView(item.id as View)}
                         title={isCollapsed ? item.label : undefined}
-                        className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${isCollapsed ? 'justify-center' : ''} ${
+                        className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 ${isCollapsed ? 'justify-center' : ''} ${
                             activeView === item.id 
                                 ? 'bg-sky-500 text-white' 
                                 : 'text-slate-300 hover:bg-slate-700 hover:text-white'
@@ -143,10 +143,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
             </nav>
             
             {/* User Info & Footer */}
-            <div className="border-t border-slate-800 p-4 bg-slate-900/50">
-                <div className={`flex flex-col mb-4 ${isCollapsed ? 'items-center' : ''}`}>
-                     <div className={`flex items-center mb-2 ${isCollapsed ? 'justify-center' : ''}`}>
-                        <div className="w-8 h-8 rounded-full bg-sky-600 flex items-center justify-center text-white font-bold text-xs">
+            <div className="border-t border-slate-800 p-3 bg-slate-900/50">
+                <div className={`flex flex-col mb-2 ${isCollapsed ? 'items-center' : ''}`}>
+                     <div className={`flex items-center mb-1 ${isCollapsed ? 'justify-center' : ''}`}>
+                        <div className="w-8 h-8 rounded-full bg-sky-600 flex items-center justify-center text-white font-bold text-xs shrink-0">
                             {user?.Nome.charAt(0).toUpperCase()}
                         </div>
                         <div className={`ml-3 overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -163,21 +163,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 </div>
 
                 <div className={`flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.38</p>
-                    <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100 mt-1'}`}>
+                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.39</p>
+                    <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100'}`}>
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium whitespace-nowrap">Sérgio Oliveira</p>
                     </div>
                 </div>
             </div>
 
-            <div className={`p-4 border-t border-slate-800 transition-all duration-300`}>
+            <div className={`p-2 border-t border-slate-800 transition-all duration-300 bg-slate-900`}>
                 <button 
                     onClick={() => setCollapsed(!isCollapsed)}
-                    className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium rounded-lg text-slate-400 hover:bg-slate-700 hover:text-white transition-colors duration-200"
+                    className="w-full flex items-center justify-center py-1.5 text-sm font-medium rounded text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-colors duration-200"
                     title={isCollapsed ? "Expandir menu" : "Recolher menu"}
                 >
-                    {isCollapsed ? <ChevronDoubleRightIcon className="h-5 w-5"/> : <ChevronDoubleLeftIcon className="h-5 w-5"/>}
+                    {isCollapsed ? <ChevronDoubleRightIcon className="h-4 w-4"/> : <ChevronDoubleLeftIcon className="h-4 w-4"/>}
                 </button>
             </div>
         </div>

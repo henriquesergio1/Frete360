@@ -59,10 +59,12 @@ const handleResponse = async (response: Response, isLoginRequest: boolean = fals
         throw new Error('Sessão expirada ou inválida. Por favor, faça login novamente.');
     }
 
-    // 402: Payment Required (Licença Expirada / Read Only)
+    // 402: Payment Required (Licença Expirada / Read Only / Missing)
     if (response.status === 402) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Modo Somente Leitura. Licença Expirada.');
+        // Importante: Incluir o código do erro na mensagem para que o App.tsx possa detectar
+        const codeTag = errorData.code ? `[${errorData.code}] ` : '';
+        throw new Error(`${codeTag}${errorData.message || 'Modo Somente Leitura. Licença Expirada.'}`);
     }
     
     if (!response.ok) {

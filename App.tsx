@@ -114,7 +114,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 </div>
 
                 <div className={`flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.27</p>
+                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.28</p>
                     <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100 mt-1'}`}>
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium whitespace-nowrap">Sérgio Oliveira</p>
@@ -207,7 +207,14 @@ const MainLayout: React.FC = () => {
 
     if (error) {
          // Se o erro for de licença ausente (bloqueio total), mostra tela especifica com opção de SAIR e ATIVAR se for Admin
-         if (error.includes('LICENSE_MISSING') || error.includes('LICENSE_INVALID')) {
+         // Verifica se o erro contem a string tecnica OU a mensagem legivel
+         const isLicenseError = 
+            error.includes('LICENSE_MISSING') || 
+            error.includes('LICENSE_INVALID') || 
+            error.includes('Licença não encontrada') ||
+            error.includes('Licença inválida');
+
+         if (isLicenseError) {
              return (
                 <div className="flex h-screen w-full items-center justify-center bg-slate-900 p-4">
                     <div className="flex flex-col items-center text-center max-w-lg w-full p-8 bg-slate-800 rounded-lg border border-red-700/50 shadow-2xl">

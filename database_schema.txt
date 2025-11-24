@@ -20,6 +20,26 @@ GO
 -- =================================================================================
 
 -- ---------------------------------------------------------------------------------
+-- Tabela: SystemSettings (Configuração Geral e Licença)
+-- ---------------------------------------------------------------------------------
+IF OBJECT_ID('dbo.SystemSettings', 'U') IS NULL
+BEGIN
+    CREATE TABLE SystemSettings (
+        ID INT PRIMARY KEY CHECK (ID = 1), -- Garante Singleton (apenas 1 linha)
+        LicenseKey NVARCHAR(MAX),
+        CompanyName NVARCHAR(100),
+        LogoUrl NVARCHAR(MAX)
+    );
+    -- Garante que existe a linha inicial
+    IF NOT EXISTS (SELECT * FROM SystemSettings WHERE ID = 1)
+    BEGIN
+        INSERT INTO SystemSettings (ID, LicenseKey, CompanyName, LogoUrl) VALUES (1, NULL, 'Fretes', NULL);
+    END
+    PRINT 'Tabela SystemSettings criada com sucesso.';
+END
+GO
+
+-- ---------------------------------------------------------------------------------
 -- Tabela: Usuarios (NOVA)
 -- ---------------------------------------------------------------------------------
 IF OBJECT_ID('dbo.Usuarios', 'U') IS NULL

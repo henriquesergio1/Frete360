@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useContext, useEffect } from 'react';
 import { LancamentoFrete } from './components/LancamentoFrete.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
@@ -115,7 +112,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 </div>
 
                 <div className={`flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.24</p>
+                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.26</p>
                     <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100 mt-1'}`}>
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium whitespace-nowrap">Sérgio Oliveira</p>
@@ -138,7 +135,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
 
 const MainLayout: React.FC = () => {
     const { loading, error, systemConfig } = useContext(DataContext);
-    const { user } = useAuth();
+    const { user, logout } = useAuth(); // Importa logout para usar na tela de erro
     const [activeView, setActiveView] = useState<View>('dashboard');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [readOnlyMode, setReadOnlyMode] = useState(false);
@@ -188,7 +185,7 @@ const MainLayout: React.FC = () => {
     }
 
     if (error) {
-         // Se o erro for de licença ausente (bloqueio total), mostra tela especifica
+         // Se o erro for de licença ausente (bloqueio total), mostra tela especifica com opção de SAIR
          if (error.includes('LICENSE_MISSING') || error.includes('LICENSE_INVALID')) {
              return (
                 <div className="flex h-screen w-full items-center justify-center bg-slate-900 p-4">
@@ -196,10 +193,16 @@ const MainLayout: React.FC = () => {
                         <ExclamationIcon className="w-16 h-16 text-red-500 mb-4" />
                         <h2 className="text-2xl font-bold text-white">Acesso Bloqueado</h2>
                         <p className="mt-2 text-slate-300">Este sistema não possui uma licença válida ativa.</p>
-                        <p className="mt-4 text-sm text-slate-400">Se você é um administrador, faça login para registrar a licença.</p>
-                        <button onClick={() => window.location.reload()} className="mt-6 bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-6 rounded-md">
-                            Tentar Novamente / Login
-                        </button>
+                        <p className="mt-4 text-sm text-slate-400">Se você é um administrador, faça login para registrar a licença. Se for um operador, aguarde a regularização.</p>
+                        
+                        <div className="mt-8 flex flex-col sm:flex-row gap-4 w-full justify-center">
+                            <button onClick={() => window.location.reload()} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-6 rounded-md">
+                                Tentar Novamente
+                            </button>
+                            <button onClick={logout} className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 px-6 rounded-md border border-slate-600">
+                                Sair / Trocar Usuário
+                            </button>
+                        </div>
                     </div>
                 </div>
              );
@@ -212,6 +215,15 @@ const MainLayout: React.FC = () => {
                     <h2 className="mt-4 text-xl font-bold text-white">Erro de Conexão</h2>
                     <p className="mt-2 text-slate-400">Não foi possível carregar os dados do sistema. Verifique se o serviço de backend está em execução e se o Banco de Dados está atualizado.</p>
                     <p className="mt-4 text-xs text-slate-500 bg-slate-900 p-2 rounded-md font-mono text-left w-full overflow-auto max-h-32">{error}</p>
+                    
+                    <div className="mt-6 flex gap-4">
+                        <button onClick={() => window.location.reload()} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md">
+                            Recarregar
+                        </button>
+                         <button onClick={logout} className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-md">
+                            Sair do Sistema
+                        </button>
+                    </div>
                 </div>
             </div>
         );

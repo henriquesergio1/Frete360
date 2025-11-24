@@ -163,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 </div>
 
                 <div className={`flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.36</p>
+                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.37</p>
                     <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100 mt-1'}`}>
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium whitespace-nowrap">Sérgio Oliveira</p>
@@ -211,11 +211,30 @@ const MainLayout: React.FC = () => {
         }
     };
 
-    // Atualiza o título da página dinamicamente
+    // Atualiza o título da página e o Favicon dinamicamente
     useEffect(() => {
         const company = systemConfig.companyName || 'Gestão de Fretes';
         document.title = `Frete360 | ${company}`;
-    }, [systemConfig.companyName]);
+
+        // Lógica para Favicon Dinâmico
+        const updateFavicon = (url: string) => {
+            let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'icon';
+                document.getElementsByTagName('head')[0].appendChild(link);
+            }
+            link.href = url;
+        };
+
+        if (systemConfig.logoUrl) {
+            updateFavicon(systemConfig.logoUrl);
+        } else {
+            // Reseta para o padrão se não tiver logo
+            updateFavicon('/favicon.svg?v=3');
+        }
+
+    }, [systemConfig]);
 
     // Carrega status da licença para o Sidebar
     useEffect(() => {

@@ -163,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 </div>
 
                 <div className={`flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.37</p>
+                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.38</p>
                     <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100 mt-1'}`}>
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium whitespace-nowrap">Sérgio Oliveira</p>
@@ -218,20 +218,23 @@ const MainLayout: React.FC = () => {
 
         // Lógica para Favicon Dinâmico
         const updateFavicon = (url: string) => {
-            let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-            if (!link) {
-                link = document.createElement('link');
-                link.rel = 'icon';
-                document.getElementsByTagName('head')[0].appendChild(link);
-            }
+            // Remove favicons antigos para forçar atualização
+            const links = document.querySelectorAll("link[rel*='icon']");
+            links.forEach(l => l.parentNode?.removeChild(l));
+
+            // Cria novo elemento link
+            const link = document.createElement('link');
+            link.type = 'image/x-icon';
+            link.rel = 'shortcut icon';
             link.href = url;
+            document.getElementsByTagName('head')[0].appendChild(link);
         };
 
+        // Se tiver URL do cliente usa ela, senão usa o padrão com cache busting
         if (systemConfig.logoUrl) {
             updateFavicon(systemConfig.logoUrl);
         } else {
-            // Reseta para o padrão se não tiver logo
-            updateFavicon('/favicon.svg?v=3');
+            updateFavicon('/favicon.svg?v=' + new Date().getTime());
         }
 
     }, [systemConfig]);

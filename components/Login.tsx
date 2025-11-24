@@ -140,7 +140,7 @@ export const Login: React.FC = () => {
                 </form>
                 
                 <div className="mt-8 text-center border-t border-slate-700 pt-4">
-                    <p className="text-xs text-slate-600 font-mono mb-2">Versão 1.2.34</p>
+                    <p className="text-xs text-slate-600 font-mono mb-2">Versão 1.2.38</p>
                     <div className="flex flex-col items-center justify-center opacity-70 hover:opacity-100 transition-opacity">
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium">Sérgio Oliveira</p>

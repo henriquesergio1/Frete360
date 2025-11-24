@@ -1,4 +1,5 @@
 
+
 import React, { useState, useContext, useEffect } from 'react';
 import { LancamentoFrete } from './components/LancamentoFrete.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
@@ -163,7 +164,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 </div>
 
                 <div className={`flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.39</p>
+                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.40</p>
                     <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100'}`}>
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium whitespace-nowrap">Sérgio Oliveira</p>

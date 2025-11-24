@@ -3,8 +3,8 @@
 import React, { useState, useContext, ChangeEvent, useEffect } from 'react';
 import { DataContext } from '../context/DataContext.tsx';
 import * as api from '../services/apiService.ts';
-import { CloudUploadIcon, CheckCircleIcon, XCircleIcon, SpinnerIcon, TruckIcon, ExclamationIcon } from './icons.tsx';
-import { Veiculo, VehicleConflict, CargaCheckResult, CargaReactivation } from '../types.ts';
+import { CloudUploadIcon, CheckCircleIcon, XCircleIcon, SpinnerIcon, TruckIcon, ExclamationIcon, DocumentReportIcon } from './icons.tsx';
+import { Veiculo, VehicleConflict, CargaCheckResult, CargaReactivation, Carga } from '../types.ts';
 
 type ImportType = 'veiculos' | 'cargas' | 'parametros-valores' | 'parametros-taxas';
 
@@ -12,6 +12,7 @@ interface ImportResult {
     success: boolean;
     message: string;
     count?: number;
+    details?: string[];
 }
 
 // --- Modal de Resolução de Conflitos (Veículos) ---
@@ -493,6 +494,215 @@ const ERPImportCard: React.FC = () => {
     );
 };
 
+// --- Card para Importação via XML (CT-e) ---
+const XMLImportCard: React.FC = () => {
+    const { veiculos, cargas, addCarga } = useContext(DataContext);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [result, setResult] = useState<ImportResult | null>(null);
+
+    const cleanPlate = (plate: string) => plate.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+    const handleFiles = async (e: ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        
+        setIsProcessing(true);
+        setResult(null);
+        
+        const files = Array.from(e.target.files);
+        let successCount = 0;
+        let errors: string[] = [];
+        const parser = new DOMParser();
+
+        try {
+            for (const file of files) {
+                try {
+                    const text = await file.text();
+                    const xmlDoc = parser.parseFromString(text, "text/xml");
+
+                    // Validar se é um CT-e
+                    const isCte = xmlDoc.getElementsByTagName("cteProc").length > 0 || xmlDoc.getElementsByTagName("CTe").length > 0;
+                    if (!isCte) {
+                        errors.push(`${file.name}: Não é um arquivo CT-e válido.`);
+                        continue;
+                    }
+
+                    // Extração de Dados (Resiliente a Namespaces)
+                    const getTag = (tagName: string) => {
+                        // Tenta encontrar a tag diretamente
+                        let el = xmlDoc.getElementsByTagName(tagName)[0];
+                        // Se não achar, tenta encontrar com namespaces comuns (caso o parser não remova)
+                        if (!el) el = xmlDoc.getElementsByTagName("infCte")[0]?.getElementsByTagName(tagName)[0];
+                        return el ? el.textContent : null;
+                    };
+
+                    const nCT = getTag("nCT");
+                    const dhEmi = getTag("dhEmi");
+                    const vRec = getTag("vRec") || getTag("vTPrest");
+                    
+                    // Cidade de Destino
+                    let xMunFim = null;
+                    const destNode = xmlDoc.getElementsByTagName("dest")[0];
+                    if (destNode) {
+                        const enderDest = destNode.getElementsByTagName("enderDest")[0];
+                        if (enderDest) xMunFim = enderDest.getElementsByTagName("xMun")[0]?.textContent;
+                    }
+                    if (!xMunFim) xMunFim = getTag("xMunFim");
+
+                    // --- Extração Inteligente de Placa/Veículo ---
+                    let placa = null;
+                    let codigoVeiculoXml = null;
+
+                    // 1. Tenta padrão <rodo> ou <infModal>
+                    const rodoNode = xmlDoc.getElementsByTagName("rodo")[0] || xmlDoc.getElementsByTagName("infModal")[0];
+                    if (rodoNode) {
+                        const veicNode = rodoNode.getElementsByTagName("veic")[0];
+                        if (veicNode) placa = veicNode.getElementsByTagName("placa")[0]?.textContent;
+                        
+                        if (!placa) {
+                             const reboqueNode = rodoNode.getElementsByTagName("veicTracionado")[0];
+                             if (reboqueNode) placa = reboqueNode.getElementsByTagName("placa")[0]?.textContent;
+                        }
+                    }
+
+                    // 2. Fallback: Tenta extrair de <ObsCont> (DADOS DO VEICULO)
+                    if (!placa) {
+                        const obsContNodes = xmlDoc.getElementsByTagName("ObsCont");
+                        for (let i = 0; i < obsContNodes.length; i++) {
+                            const obs = obsContNodes[i];
+                            const xCampo = obs.getAttribute("xCampo");
+                            // Verifica "DADOS DO VEICULO" (case insensitive)
+                            if (xCampo && xCampo.toUpperCase() === "DADOS DO VEICULO") {
+                                const xTexto = obs.getElementsByTagName("xTexto")[0]?.textContent;
+                                if (xTexto) {
+                                    // Extrai Placa: "Placa: XXX0000"
+                                    const plateMatch = xTexto.match(/Placa:\s*([A-Z0-9]+)/i);
+                                    if (plateMatch && plateMatch[1]) {
+                                        placa = plateMatch[1];
+                                    }
+                                    // Extrai Codigo: "Codigo: 64"
+                                    const codeMatch = xTexto.match(/Codigo:\s*([A-Z0-9]+)/i);
+                                    if (codeMatch && codeMatch[1]) {
+                                        codigoVeiculoXml = codeMatch[1];
+                                    }
+                                    break; // Encontrou a tag correta
+                                }
+                            }
+                        }
+                    }
+
+                    // Validações Básicas
+                    if (!nCT || !dhEmi || !vRec || !xMunFim) {
+                        errors.push(`${file.name}: Campos obrigatórios faltando (Número, Data, Valor ou Cidade).`);
+                        continue;
+                    }
+
+                    // Verificar Duplicidade
+                    const exists = cargas.some(c => c.NumeroCarga === nCT && !c.Excluido);
+                    if (exists) {
+                        errors.push(`${file.name}: Carga ${nCT} já cadastrada.`);
+                        continue;
+                    }
+
+                    // Tentar encontrar o veículo no sistema
+                    let veiculoEncontrado = null;
+
+                    // 1. Busca por Placa (Prioridade)
+                    if (placa) {
+                        const cleanXmlPlate = cleanPlate(placa);
+                        veiculoEncontrado = veiculos.find(v => cleanPlate(v.Placa) === cleanXmlPlate);
+                    }
+
+                    // 2. Busca por Código do Veículo (Fallback se tiver extraído do XML)
+                    if (!veiculoEncontrado && codigoVeiculoXml) {
+                        veiculoEncontrado = veiculos.find(v => v.COD_Veiculo === codigoVeiculoXml);
+                    }
+
+                    if (!veiculoEncontrado) {
+                        errors.push(`${file.name}: Veículo não identificado no sistema (Placa: ${placa || '?'} / Cód: ${codigoVeiculoXml || '?'}).`);
+                        continue;
+                    }
+
+                    // Criar Objeto Carga
+                    const novaCarga: Omit<Carga, 'ID_Carga'> = {
+                        NumeroCarga: nCT,
+                        Cidade: xMunFim,
+                        ValorCTE: parseFloat(vRec),
+                        DataCTE: dhEmi.split('T')[0],
+                        KM: 0, 
+                        COD_Veiculo: veiculoEncontrado.COD_Veiculo,
+                        Origem: 'Manual'
+                    };
+
+                    await addCarga(novaCarga);
+                    successCount++;
+
+                } catch (err: any) {
+                    console.error(err);
+                    errors.push(`${file.name}: Erro ao processar - ${err.message}`);
+                }
+            }
+
+            setResult({
+                success: successCount > 0,
+                message: `Processamento concluído. ${successCount} cargas importadas.`,
+                count: successCount,
+                details: errors
+            });
+
+        } catch (error: any) {
+            setResult({ success: false, message: "Erro geral na importação: " + error.message });
+        } finally {
+            setIsProcessing(false);
+            e.target.value = ''; // Reset input
+        }
+    };
+
+    return (
+        <div className="bg-slate-800 p-6 rounded-lg shadow-lg border border-sky-500/30">
+            <div className="flex items-center mb-4">
+                <DocumentReportIcon className="w-8 h-8 text-sky-400 mr-4" />
+                <div>
+                    <h3 className="text-lg font-semibold text-white">Importar XML (CT-e)</h3>
+                    <p className="text-sm text-slate-400">Carregue arquivos XML dos conhecimentos para criar as cargas automaticamente.</p>
+                </div>
+            </div>
+            
+            <div className="mt-6">
+                <label htmlFor="xml-upload" className={`relative cursor-pointer text-white font-bold py-3 px-6 rounded-md transition duration-200 w-full text-center inline-flex items-center justify-center ${isProcessing ? 'bg-slate-500 cursor-not-allowed' : 'bg-sky-600 hover:bg-sky-500'}`}>
+                    {isProcessing ? (
+                        <><SpinnerIcon className="w-5 h-5 mr-2" /><span>Processando XMLs...</span></>
+                    ) : (
+                       <>
+                         <CloudUploadIcon className="w-5 h-5 mr-2" />
+                         <span>Selecionar Arquivos XML</span>
+                       </>
+                    )}
+                    <input id="xml-upload" type="file" className="sr-only" accept=".xml" multiple onChange={handleFiles} disabled={isProcessing} />
+                </label>
+            </div>
+
+            {result && (
+                <div className="mt-4 space-y-2">
+                    <div className={`p-3 rounded-md text-sm flex items-center ${result.success ? 'bg-green-900/50 text-green-200 border border-green-700/50' : 'bg-red-900/50 text-red-200 border border-red-700/50'}`}>
+                        {result.success ? <CheckCircleIcon className="w-5 h-5 mr-2" /> : <XCircleIcon className="w-5 h-5 mr-2" />}
+                        {result.message}
+                    </div>
+                    {result.details && result.details.length > 0 && (
+                        <div className="bg-slate-900/50 p-3 rounded-md border border-slate-700 max-h-40 overflow-y-auto">
+                            <p className="text-xs font-bold text-slate-400 mb-1">Detalhes / Erros:</p>
+                            <ul className="list-disc list-inside text-xs text-red-300">
+                                {result.details.map((err, idx) => (
+                                    <li key={idx}>{err}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 // --- Card para Importação via CSV ---
 const CSVImportCard: React.FC<{
@@ -572,10 +782,11 @@ export const Importacao: React.FC = () => {
         <div className="space-y-8">
             <div>
                 <h2 className="text-2xl font-bold text-white mb-2">Importação de Dados</h2>
-                <p className="text-slate-400">Importe cargas do ERP ou carregue outros dados via arquivos CSV.</p>
+                <p className="text-slate-400">Importe cargas do ERP ou carregue outros dados via arquivos XML/CSV.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <XMLImportCard />
                 <ERPImportCard />
                 <ERPVeiculosImportCard />
             </div>

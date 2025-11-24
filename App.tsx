@@ -14,7 +14,8 @@ import { Login } from './components/Login.tsx';
 import { DataProvider, DataContext } from './context/DataContext.tsx';
 import { AuthProvider, AuthContext, useAuth } from './context/AuthContext.tsx';
 import { ChartBarIcon, CogIcon, PlusCircleIcon, TruckIcon, DocumentReportIcon, CloudUploadIcon, BoxIcon, SpinnerIcon, XCircleIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, Frete360Logo, AdjustmentsIcon, ExclamationIcon, CheckCircleIcon } from './components/icons.tsx';
-import { updateLicense } from './services/apiService.ts';
+import { updateLicense, getSystemStatus } from './services/apiService.ts';
+import { LicenseStatus } from './types.ts';
 
 type View = 'dashboard' | 'lancamento' | 'veiculos' | 'cargas' | 'parametros' | 'relatorios' | 'importacao' | 'admin';
 
@@ -23,9 +24,10 @@ interface SidebarProps {
     setView: (view: View) => void;
     isCollapsed: boolean;
     setCollapsed: (collapsed: boolean) => void;
+    licenseStatus: LicenseStatus | null;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, setCollapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, setCollapsed, licenseStatus }) => {
     const { systemConfig } = useContext(DataContext);
     const { user, logout } = useAuth();
     
@@ -44,6 +46,51 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
         // @ts-ignore
         navItems.push({ id: 'admin', label: 'Administração', icon: CogIcon });
     }
+
+    // Lógica de Alerta de Licença
+    const renderLicenseAlert = () => {
+        if (!licenseStatus || !licenseStatus.expiresAt) return null;
+
+        const today = new Date();
+        const expireDate = new Date(licenseStatus.expiresAt);
+        const diffTime = expireDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // Se faltar mais de 15 dias, não mostra nada
+        if (diffDays > 15) return null;
+
+        let colorClass = 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+        let text = `Vence em ${diffDays} dias`;
+        let icon = <ExclamationIcon className="w-3 h-3 mr-1" />;
+
+        if (diffDays <= 5) {
+            colorClass = 'bg-red-500/20 text-red-400 border-red-500/30';
+        }
+        
+        if (diffDays < 0) {
+            text = "Licença Expirada";
+            colorClass = 'bg-red-600 text-white border-red-700';
+        }
+
+        if (isCollapsed) {
+            return (
+                <div className={`mt-2 w-6 h-6 rounded-full flex items-center justify-center ${diffDays < 0 ? 'bg-red-600 text-white' : 'bg-yellow-500 text-slate-900'} animate-pulse`} title={text}>
+                    <span className="text-[10px] font-bold">!</span>
+                </div>
+            );
+        }
+
+        return (
+            <div 
+                className={`mt-2 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide border flex items-center justify-center w-full animate-pulse cursor-help ${colorClass}`}
+                title="Renove sua licença no menu Administração"
+                onClick={() => setView('admin')}
+            >
+                {icon}
+                {text}
+            </div>
+        );
+    };
 
     return (
         <div className={`bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
@@ -75,6 +122,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                         {systemConfig.companyName || 'Empresa'}
                     </h2>
                 )}
+                {/* Alerta de Licença */}
+                {renderLicenseAlert()}
             </div>
 
             <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
@@ -116,7 +165,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setView, isCollapsed, set
                 </div>
 
                 <div className={`flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.31</p>
+                    <p className="text-xs font-mono text-slate-500" title="Versão do Sistema">v1.2.32</p>
                     <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100 mt-1'}`}>
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">Dev</p>
                         <p className="text-xs text-slate-400 font-medium whitespace-nowrap">Sérgio Oliveira</p>
@@ -143,6 +192,7 @@ const MainLayout: React.FC = () => {
     const [activeView, setActiveView] = useState<View>('dashboard');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [readOnlyMode, setReadOnlyMode] = useState(false);
+    const [licenseStatus, setLicenseStatus] = useState<LicenseStatus | null>(null);
 
     // Estados para ativação de emergência na tela de erro
     const [licenseKeyInput, setLicenseKeyInput] = useState('');
@@ -169,9 +219,27 @@ const MainLayout: React.FC = () => {
         document.title = `Frete360 | ${company}`;
     }, [systemConfig.companyName]);
 
-    // Escuta evento de licença expirada vindo da API
+    // Carrega status da licença para o Sidebar
     useEffect(() => {
-        const handleLicenseExpired = () => setReadOnlyMode(true);
+        const checkStatus = async () => {
+            try {
+                const status = await getSystemStatus();
+                setLicenseStatus(status);
+                if (status.status === 'EXPIRED') setReadOnlyMode(true);
+            } catch (e) {
+                console.error("Erro ao verificar status da licença no MainLayout:", e);
+            }
+        };
+        checkStatus();
+    }, []);
+
+    // Escuta evento de licença expirada vindo da API (redundância para requisições falhas)
+    useEffect(() => {
+        const handleLicenseExpired = () => {
+            setReadOnlyMode(true);
+            // Opcional: Recarregar status para atualizar contadores
+            getSystemStatus().then(setLicenseStatus).catch(console.error);
+        };
         window.addEventListener('FRETE360_LICENSE_EXPIRED', handleLicenseExpired);
         return () => window.removeEventListener('FRETE360_LICENSE_EXPIRED', handleLicenseExpired);
     }, []);
@@ -295,7 +363,13 @@ const MainLayout: React.FC = () => {
                 </div>
             )}
             <div className="flex flex-1 overflow-hidden">
-                <Sidebar activeView={activeView} setView={setActiveView} isCollapsed={isSidebarCollapsed} setCollapsed={setIsSidebarCollapsed} />
+                <Sidebar 
+                    activeView={activeView} 
+                    setView={setActiveView} 
+                    isCollapsed={isSidebarCollapsed} 
+                    setCollapsed={setIsSidebarCollapsed}
+                    licenseStatus={licenseStatus}
+                />
                 <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-800 relative">
                     <div className="max-w-7xl mx-auto">
                        {renderContent()}

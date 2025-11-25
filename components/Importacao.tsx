@@ -504,10 +504,23 @@ const XMLImportCard: React.FC = () => {
         
         const files = Array.from(e.target.files);
         let successCount = 0;
-        let errors: string[] = [];
+        const errors: string[] = [];
         const parser = new DOMParser();
 
+        // Estrutura para agrupar cargas: Chave = "NumeroCarga|Cidade"
+        // Valor = { ...dadosDaCarga, ValorCTE: acumulado }
+        const groupedCargas = new Map<string, {
+            NumeroCarga: string;
+            Cidade: string;
+            ValorCTE: number;
+            DataCTE: string;
+            COD_Veiculo: string;
+            PlacaRef: string;
+            Files: string[];
+        }>();
+
         try {
+            // ETAPA 1: Leitura e Agrupamento
             for (const file of files) {
                 try {
                     const text = await file.text();
@@ -525,17 +538,12 @@ const XMLImportCard: React.FC = () => {
                         return el ? el.textContent : null;
                     };
 
-                    // ----------------------------------------------------------------
-                    // LÓGICA DE EXTRAÇÃO DO NÚMERO DA CARGA
-                    // ----------------------------------------------------------------
-                    // Prioridade: 1. Campo específico em xObs (IC/Num.Seq) 2. Número do CTe (nCT)
-                    
+                    // LÓGICA DE EXTRAÇÃO DO NÚMERO DA CARGA (xObs ou nCT)
                     let sequenceNumber = null;
                     const xObsNodes = xmlDoc.getElementsByTagName("xObs");
                     for (let i = 0; i < xObsNodes.length; i++) {
                         const text = xObsNodes[i].textContent;
                         if (text) {
-                            // Procura por padrão: IC/Num.Seq: 23329 ;
                             const match = text.match(/IC\/Num\.Seq:\s*(\d+)/i);
                             if (match && match[1]) {
                                 sequenceNumber = match[1];
@@ -578,13 +586,9 @@ const XMLImportCard: React.FC = () => {
                                 const xTexto = obs.getElementsByTagName("xTexto")[0]?.textContent;
                                 if (xTexto) {
                                     const plateMatch = xTexto.match(/Placa:\s*([A-Z0-9]+)/i);
-                                    if (plateMatch && plateMatch[1]) {
-                                        placa = plateMatch[1];
-                                    }
+                                    if (plateMatch && plateMatch[1]) placa = plateMatch[1];
                                     const codeMatch = xTexto.match(/Codigo:\s*([A-Z0-9]+)/i);
-                                    if (codeMatch && codeMatch[1]) {
-                                        codigoVeiculoXml = codeMatch[1];
-                                    }
+                                    if (codeMatch && codeMatch[1]) codigoVeiculoXml = codeMatch[1];
                                     break;
                                 }
                             }
@@ -596,47 +600,76 @@ const XMLImportCard: React.FC = () => {
                         continue;
                     }
 
-                    const exists = cargas.some(c => c.NumeroCarga === nCT && !c.Excluido);
-                    if (exists) {
-                        errors.push(`${file.name}: Carga ${nCT} já cadastrada.`);
-                        continue;
-                    }
+                    // Chave de Agrupamento: NumeroCarga + Cidade
+                    const key = `${nCT}|${xMunFim}`;
+                    const valorAtual = parseFloat(vRec);
 
-                    let veiculoEncontrado = null;
-                    if (placa) {
-                        const cleanXmlPlate = cleanPlate(placa);
-                        veiculoEncontrado = veiculos.find(v => cleanPlate(v.Placa) === cleanXmlPlate);
+                    if (groupedCargas.has(key)) {
+                        const existing = groupedCargas.get(key)!;
+                        existing.ValorCTE += valorAtual;
+                        existing.Files.push(file.name);
+                        
+                        // Tenta preencher dados de veículo se faltavam no anterior
+                        if (!existing.PlacaRef && placa) existing.PlacaRef = placa;
+                        if (!existing.COD_Veiculo && codigoVeiculoXml) existing.COD_Veiculo = codigoVeiculoXml;
+                    } else {
+                        groupedCargas.set(key, {
+                            NumeroCarga: nCT,
+                            Cidade: xMunFim,
+                            ValorCTE: valorAtual,
+                            DataCTE: dhEmi.split('T')[0],
+                            COD_Veiculo: codigoVeiculoXml || '',
+                            PlacaRef: placa || '',
+                            Files: [file.name]
+                        });
                     }
-                    if (!veiculoEncontrado && codigoVeiculoXml) {
-                        veiculoEncontrado = veiculos.find(v => v.COD_Veiculo === codigoVeiculoXml);
-                    }
-
-                    if (!veiculoEncontrado) {
-                        errors.push(`${file.name}: Veículo não identificado (Placa: ${placa || '?'} / Cód: ${codigoVeiculoXml || '?'}).`);
-                        continue;
-                    }
-
-                    const novaCarga: Omit<Carga, 'ID_Carga'> = {
-                        NumeroCarga: nCT,
-                        Cidade: xMunFim,
-                        ValorCTE: parseFloat(vRec),
-                        DataCTE: dhEmi.split('T')[0],
-                        KM: 0, 
-                        COD_Veiculo: veiculoEncontrado.COD_Veiculo,
-                        Origem: 'XML'
-                    };
-
-                    await addCarga(novaCarga);
-                    successCount++;
 
                 } catch (err: any) {
-                    errors.push(`${file.name}: Erro - ${err.message}`);
+                    errors.push(`${file.name}: Erro de leitura - ${err.message}`);
                 }
+            }
+
+            // ETAPA 2: Processamento dos Grupos e Inserção
+            for (const group of groupedCargas.values()) {
+                // Verifica duplicidade no banco (usando o grupo consolidado)
+                const exists = cargas.some(c => c.NumeroCarga === group.NumeroCarga && !c.Excluido);
+                if (exists) {
+                    errors.push(`Carga ${group.NumeroCarga} (${group.Cidade}) já cadastrada. Arquivos ignorados: ${group.Files.length}`);
+                    continue;
+                }
+
+                // Identifica o veículo
+                let veiculoEncontrado = null;
+                if (group.PlacaRef) {
+                    const cleanXmlPlate = cleanPlate(group.PlacaRef);
+                    veiculoEncontrado = veiculos.find(v => cleanPlate(v.Placa) === cleanXmlPlate);
+                }
+                if (!veiculoEncontrado && group.COD_Veiculo) {
+                    veiculoEncontrado = veiculos.find(v => v.COD_Veiculo === group.COD_Veiculo);
+                }
+
+                if (!veiculoEncontrado) {
+                    errors.push(`Carga ${group.NumeroCarga}: Veículo não identificado (Placa: ${group.PlacaRef || '?'} / Cód: ${group.COD_Veiculo || '?'}).`);
+                    continue;
+                }
+
+                const novaCarga: Omit<Carga, 'ID_Carga'> = {
+                    NumeroCarga: group.NumeroCarga,
+                    Cidade: group.Cidade,
+                    ValorCTE: group.ValorCTE, // Valor somado de todos os XMLs do grupo
+                    DataCTE: group.DataCTE,
+                    KM: 0, 
+                    COD_Veiculo: veiculoEncontrado.COD_Veiculo,
+                    Origem: 'XML'
+                };
+
+                await addCarga(novaCarga);
+                successCount++; // Conta 1 sucesso por grupo importado
             }
 
             setResult({
                 success: successCount > 0,
-                message: `${successCount} cargas importadas via XML.`,
+                message: `${successCount} cargas consolidadas importadas via XML.`,
                 count: successCount,
                 details: errors
             });
@@ -655,14 +688,14 @@ const XMLImportCard: React.FC = () => {
                 <DocumentReportIcon className="w-8 h-8 text-blue-400 mr-4" />
                 <div>
                     <h3 className="text-lg font-semibold text-white">Arquivos XML (CT-e)</h3>
-                    <p className="text-sm text-slate-400">Importação de cargas via arquivos fiscais.</p>
+                    <p className="text-sm text-slate-400">Importação de cargas via arquivos fiscais (Agrupa por Carga/Cidade).</p>
                 </div>
             </div>
             
             <div className="mt-6">
                 <label htmlFor="xml-upload" className={`relative cursor-pointer text-white font-bold py-3 px-6 rounded-md transition duration-200 w-full text-center inline-flex items-center justify-center ${isProcessing ? 'bg-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'}`}>
                     {isProcessing ? (
-                        <><SpinnerIcon className="w-5 h-5 mr-2" /><span>Lendo Arquivos...</span></>
+                        <><SpinnerIcon className="w-5 h-5 mr-2" /><span>Processando...</span></>
                     ) : (
                        <>
                          <CloudUploadIcon className="w-5 h-5 mr-2" />

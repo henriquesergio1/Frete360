@@ -525,7 +525,26 @@ const XMLImportCard: React.FC = () => {
                         return el ? el.textContent : null;
                     };
 
-                    const nCT = getTag("nCT");
+                    // ----------------------------------------------------------------
+                    // LÓGICA DE EXTRAÇÃO DO NÚMERO DA CARGA
+                    // ----------------------------------------------------------------
+                    // Prioridade: 1. Campo específico em xObs (IC/Num.Seq) 2. Número do CTe (nCT)
+                    
+                    let sequenceNumber = null;
+                    const xObsNodes = xmlDoc.getElementsByTagName("xObs");
+                    for (let i = 0; i < xObsNodes.length; i++) {
+                        const text = xObsNodes[i].textContent;
+                        if (text) {
+                            // Procura por padrão: IC/Num.Seq: 23329 ;
+                            const match = text.match(/IC\/Num\.Seq:\s*(\d+)/i);
+                            if (match && match[1]) {
+                                sequenceNumber = match[1];
+                                break;
+                            }
+                        }
+                    }
+
+                    const nCT = sequenceNumber || getTag("nCT");
                     const dhEmi = getTag("dhEmi");
                     const vRec = getTag("vRec") || getTag("vTPrest");
                     

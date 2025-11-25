@@ -1,18 +1,21 @@
 
 
+
+
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { Carga } from '../types.ts';
 import { DataContext } from '../context/DataContext.tsx';
 import { PlusCircleIcon, PencilIcon, XCircleIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon, ExclamationIcon, ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon } from './icons.tsx';
 
 // --- Tag Component for Carga Origin ---
-const OrigemTag: React.FC<{ origem?: 'ERP' | 'CSV' | 'Manual' }> = ({ origem }) => {
+const OrigemTag: React.FC<{ origem?: 'ERP' | 'CSV' | 'Manual' | 'XML' }> = ({ origem }) => {
     if (!origem) return null;
 
     const styles = {
         ERP: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
         CSV: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
         Manual: 'bg-green-500/20 text-green-300 border border-green-500/30',
+        XML: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
     };
 
     return (

@@ -1,5 +1,7 @@
 
 
+
+
 -- =================================================================================
 -- SCRIPT DE ATUALIZAÇÃO/CRIAÇÃO DO BANCO DE DADOS (SEGURO)
 -- Dialeto: Transact-SQL (T-SQL) para Microsoft SQL Server
@@ -135,7 +137,8 @@ BEGIN
         DataCTE DATE NOT NULL,
         KM INT,
         COD_VEICULO NVARCHAR(50) NOT NULL,
-        Origem NVARCHAR(20) CHECK (Origem IN ('ERP', 'CSV', 'Manual')),
+        -- Constraint atualizada para aceitar XML
+        Origem NVARCHAR(20) CHECK (Origem IN ('ERP', 'CSV', 'Manual', 'XML')),
         Excluido BIT NOT NULL DEFAULT 0,
         MotivoExclusao NVARCHAR(255),
         MotivoAlteracao NVARCHAR(255),
@@ -237,7 +240,7 @@ BEGIN ALTER TABLE Lancamentos ADD UsuarioAlteracao NVARCHAR(100); END;
 GO
 
 -- =================================================================================
--- 4. ATUALIZAÇÃO DE COLUNAS DE EXCLUSÃO LÓGICA (CRÍTICO PARA CORREÇÃO DE ERRO 500)
+-- 4. ATUALIZAÇÃO DE COLUNAS DE EXCLUSÃO LÓGICA
 -- =================================================================================
 
 -- ParametrosValores
@@ -260,4 +263,32 @@ BEGIN ALTER TABLE ParametrosTaxas ADD MotivoExclusao NVARCHAR(255); PRINT 'Adici
 IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = 'MotivoAlteracao' AND Object_ID = Object_ID('ParametrosTaxas'))
 BEGIN ALTER TABLE ParametrosTaxas ADD MotivoAlteracao NVARCHAR(255); PRINT 'Adicionado MotivoAlteracao em ParametrosTaxas'; END;
 
+GO
+
+-- =================================================================================
+-- 5. MIGRAÇÃO PARA ACEITAR 'XML' NA COLUNA ORIGEM (CargasManuais)
+-- =================================================================================
+-- Esta parte detecta a constraint antiga e a substitui.
+-- ATENÇÃO: Isso tenta adivinhar o nome da constraint se não foi nomeada explicitamente.
+DECLARE @ConstraintName nvarchar(200)
+SELECT @ConstraintName = Name FROM SYS.DEFAULT_CONSTRAINTS WHERE PARENT_OBJECT_ID = OBJECT_ID('CargasManuais') AND PARENT_COLUMN_ID = (SELECT column_id FROM sys.columns WHERE NAME = 'Origem' AND object_id = OBJECT_ID('CargasManuais'))
+IF @ConstraintName IS NOT NULL
+BEGIN
+ EXEC('ALTER TABLE CargasManuais DROP CONSTRAINT ' + @ConstraintName)
+END
+
+-- Tenta dropar Check constraints também (que validam os valores 'ERP','Manual', etc)
+SELECT @ConstraintName = name FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID('CargasManuais') AND definition LIKE '%Origem%'
+IF @ConstraintName IS NOT NULL
+BEGIN
+ EXEC('ALTER TABLE CargasManuais DROP CONSTRAINT ' + @ConstraintName)
+ PRINT 'Constraint antiga de Origem removida.'
+END
+
+-- Adiciona a nova constraint com 'XML'
+IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID('CargasManuais') AND definition LIKE '%XML%')
+BEGIN
+    ALTER TABLE CargasManuais WITH CHECK ADD CONSTRAINT CK_CargasManuais_Origem CHECK (Origem IN ('ERP', 'CSV', 'Manual', 'XML'));
+    PRINT 'Constraint de Origem atualizada para aceitar XML.';
+END
 GO

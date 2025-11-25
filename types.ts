@@ -1,6 +1,7 @@
 
 
 
+
 export interface Veiculo {
   ID_Veiculo: number;
   COD_Veiculo: string;
@@ -9,7 +10,7 @@ export interface Veiculo {
   Motorista: string;
   CapacidadeKG: number;
   Ativo: boolean;
-  Origem?: 'ERP' | 'CSV' | 'Manual';
+  Origem?: 'ERP' | 'CSV' | 'Manual' | 'XML';
   UsuarioCriacao?: string;
   UsuarioAlteracao?: string;
 }
@@ -22,7 +23,7 @@ export interface Carga {
   DataCTE: string;
   KM: number;
   COD_Veiculo: string;
-  Origem?: 'ERP' | 'CSV' | 'Manual';
+  Origem?: 'ERP' | 'CSV' | 'Manual' | 'XML';
   Excluido?: boolean;
   MotivoExclusao?: string;
   MotivoAlteracao?: string;

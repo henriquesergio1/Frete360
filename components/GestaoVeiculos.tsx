@@ -1,11 +1,13 @@
 
+
+
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { Veiculo } from '../types.ts';
 import { DataContext } from '../context/DataContext.tsx';
 import { PlusCircleIcon, PencilIcon, XCircleIcon, CheckCircleIcon } from './icons.tsx';
 
 // --- Tag Component for Veiculo Origin ---
-const OrigemTag: React.FC<{ origem?: 'ERP' | 'CSV' | 'Manual' }> = ({ origem }) => {
+const OrigemTag: React.FC<{ origem?: 'ERP' | 'CSV' | 'Manual' | 'XML' }> = ({ origem }) => {
     // Se a origem não estiver definida (veículos antigos), assume Manual
     const displayOrigem = origem || 'Manual';
 
@@ -13,6 +15,7 @@ const OrigemTag: React.FC<{ origem?: 'ERP' | 'CSV' | 'Manual' }> = ({ origem }) 
         ERP: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
         CSV: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
         Manual: 'bg-green-500/20 text-green-300 border border-green-500/30',
+        XML: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
     };
 
     return (

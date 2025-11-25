@@ -16,14 +16,25 @@ const swaggerSpec = require('./swaggerConfig');
 const JWT_SECRET = process.env.JWT_SECRET || 'fretes-secret-key-change-in-prod';
 const SALT_ROUNDS = 10;
 
-// --- Configurações de BD ---
+// --- Configurações de BD (Com Fallback de Compatibilidade) ---
+// Tenta pegar o padrão NOVO (_FRETE), se não existir, pega o ANTIGO (_ODIN)
+const dbServer = process.env.DB_SERVER_FRETE || process.env.DB_SERVER_ODIN;
+const dbUser = process.env.DB_USER_FRETE || process.env.DB_USER_ODIN;
+const dbPass = process.env.DB_PASSWORD_FRETE || process.env.DB_PASSWORD_ODIN;
+const dbName = process.env.DB_DATABASE_FRETE || process.env.DB_DATABASE_ODIN;
+
+if (!dbServer || !dbUser || !dbPass) {
+    console.error("ERRO CRÍTICO: Variáveis de ambiente do Banco de Dados não configuradas.");
+    console.error("Certifique-se de configurar DB_SERVER_FRETE, DB_USER_FRETE e DB_PASSWORD_FRETE no Portainer/Docker.");
+}
+
 const configOdin = {
-  server: process.env.DB_SERVER_FRETE,
+  server: dbServer,
   authentication: {
     type: 'default',
-    options: { userName: process.env.DB_USER_FRETE, password: process.env.DB_PASSWORD_FRETE },
+    options: { userName: dbUser, password: dbPass },
   },
-  options: { encrypt: true, database: process.env.DB_DATABASE_FRETE, rowCollectionOnRequestCompletion: true, trustServerCertificate: true },
+  options: { encrypt: true, database: dbName, rowCollectionOnRequestCompletion: true, trustServerCertificate: true },
 };
 
 const configErp = {
@@ -39,7 +50,7 @@ function executeQuery(config, query, params = []) {
   return new Promise((resolve, reject) => {
     const connection = new Connection(config);
     connection.on('connect', (err) => {
-      if (err) return reject(new Error(`Falha na conexão: ${err.message}`));
+      if (err) return reject(new Error(`Falha na conexão (${config === configOdin ? 'Frete' : 'ERP'}): ${err.message}`));
       const request = new Request(query, (err, rowCount, rows) => {
         connection.close();
         if (err) return reject(new Error(`Erro SQL: ${err.message}`));

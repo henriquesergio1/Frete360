@@ -1,13 +1,124 @@
 
-import React, { useState, useEffect, useMemo, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useContext, useRef } from 'react';
 import { Veiculo, Carga, Lancamento, MotivoSubstituicao, NewLancamento } from '../types.ts';
 import * as api from '../services/apiService.ts';
 import { DataContext } from '../context/DataContext.tsx';
-import { ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, ExclamationIcon, SpinnerIcon, XCircleIcon, PencilIcon } from './icons.tsx';
+import { ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, ExclamationIcon, SpinnerIcon, XCircleIcon, PencilIcon, ChevronDownIcon, ChevronUpIcon } from './icons.tsx';
 
 interface LancamentoFreteProps {
     setView: (view: 'relatorios') => void;
 }
+
+// --- Componente de Seleção com Busca ---
+const SearchableSelect: React.FC<{
+    options: Veiculo[];
+    value: number | null;
+    onChange: (id: number) => void;
+    placeholder?: string;
+}> = ({ options, value, onChange, placeholder = "Selecione..." }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const wrapperRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Fecha ao clicar fora
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [wrapperRef]);
+
+    // Foca no input ao abrir
+    useEffect(() => {
+        if (isOpen && inputRef.current) {
+            inputRef.current.focus();
+        }
+        if (!isOpen) {
+            setSearchTerm(''); // Limpa busca ao fechar
+        }
+    }, [isOpen]);
+
+    const selectedOption = options.find(o => o.ID_Veiculo === value);
+
+    const filteredOptions = useMemo(() => {
+        if (!searchTerm) return options;
+        const lowerTerm = searchTerm.toLowerCase();
+        return options.filter(option => 
+            option.Placa.toLowerCase().includes(lowerTerm) ||
+            option.Motorista.toLowerCase().includes(lowerTerm) ||
+            option.COD_Veiculo.toLowerCase().includes(lowerTerm)
+        );
+    }, [options, searchTerm]);
+
+    const handleSelect = (id: number) => {
+        onChange(id);
+        setIsOpen(false);
+    };
+
+    return (
+        <div className="relative" ref={wrapperRef}>
+            {/* Gatilho (Parece um Select) */}
+            <div 
+                onClick={() => setIsOpen(!isOpen)}
+                className={`w-full bg-slate-700 text-white border ${isOpen ? 'border-sky-500 ring-1 ring-sky-500' : 'border-slate-600'} rounded-md p-2 flex justify-between items-center cursor-pointer transition-all duration-200 select-none`}
+            >
+                <span className={`truncate ${selectedOption ? 'text-white' : 'text-slate-400'}`}>
+                    {selectedOption 
+                        ? `${selectedOption.COD_Veiculo} - ${selectedOption.Placa} - ${selectedOption.Motorista}`
+                        : placeholder
+                    }
+                </span>
+                {isOpen ? <ChevronUpIcon className="w-5 h-5 text-sky-500 ml-2 shrink-0"/> : <ChevronDownIcon className="w-5 h-5 text-slate-400 ml-2 shrink-0"/>}
+            </div>
+
+            {/* Dropdown Menu */}
+            {isOpen && (
+                <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-600 rounded-md shadow-2xl max-h-72 flex flex-col">
+                    {/* Campo de Busca Sticky */}
+                    <div className="p-2 border-b border-slate-700 bg-slate-800 rounded-t-md sticky top-0">
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Buscar Placa, Motorista ou Código..."
+                            className="w-full bg-slate-900 text-white border border-slate-700 rounded-md p-2 text-sm focus:ring-sky-500 focus:border-sky-500 placeholder-slate-500 outline-none"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+
+                    {/* Lista de Opções */}
+                    <div className="overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-slate-600">
+                        {filteredOptions.length > 0 ? (
+                            filteredOptions.map(option => (
+                                <div
+                                    key={option.ID_Veiculo}
+                                    onClick={() => handleSelect(option.ID_Veiculo)}
+                                    className={`px-3 py-2 cursor-pointer text-sm transition-colors border-b border-slate-700/50 last:border-0 ${
+                                        option.ID_Veiculo === value 
+                                            ? 'bg-sky-600 text-white' 
+                                            : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                                    }`}
+                                >
+                                    <div className="font-bold">{option.Placa} <span className="font-normal text-xs opacity-75">({option.COD_Veiculo})</span></div>
+                                    <div className="text-xs opacity-80">{option.Motorista}</div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="p-4 text-center text-slate-500 text-sm">
+                                Nenhum veículo encontrado.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 // Helper component for form steps
 const Step: React.FC<{
@@ -424,14 +535,13 @@ export const LancamentoFrete: React.FC<LancamentoFreteProps> = ({ setView }) => 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label htmlFor="veiculo" className="block text-sm font-medium text-slate-300 mb-1">Veículo</label>
-                                <select id="veiculo" value={selectedVeiculoId || ''} onChange={(e) => setSelectedVeiculoId(Number(e.target.value))} className="w-full bg-slate-700 text-white border border-slate-600 rounded-md p-2 focus:ring-sky-500 focus:border-sky-500">
-                                    <option value="" disabled>Selecione um veículo</option>
-                                    {activeVeiculos.map(v => (
-                                        <option key={v.ID_Veiculo} value={v.ID_Veiculo}>
-                                            {v.COD_Veiculo} - {v.Placa} - {v.Motorista}
-                                        </option>
-                                    ))}
-                                </select>
+                                {/* SUBSTITUÍDO: Select nativo por SearchableSelect */}
+                                <SearchableSelect 
+                                    options={activeVeiculos}
+                                    value={selectedVeiculoId}
+                                    onChange={setSelectedVeiculoId}
+                                    placeholder="Selecione ou busque um veículo..."
+                                />
                             </div>
                             <div>
                                 <label htmlFor="dataFrete" className="block text-sm font-medium text-slate-300 mb-1">Data do Frete</label>
